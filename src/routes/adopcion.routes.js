@@ -1,6 +1,7 @@
 const express = require('express');
 
 const controller = require('../controllers/adopcion.controller');
+const queryController = require('../controllers/adopcion.query.controller');
 
 const router = express.Router();
 
@@ -10,5 +11,6 @@ router.post('/', controller.create);
 router.put('/:id', controller.update);
 router.patch('/:id', controller.update);
 router.delete('/:id', controller.remove);
+router.query('/', queryController.queryAdopciones);
 
 module.exports = router;
