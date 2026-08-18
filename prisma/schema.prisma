@@ -6,3 +6,15 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model Animal {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  especie   String
+  raza      String?
+  edad      Int
+  sexo      String
+  estado    String   @default("DISPONIBLE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
