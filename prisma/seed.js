@@ -1,7 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
-
+const prisma = require('../src/config/database');
 async function main() {
   const animal1 = await prisma.animal.create({
     data: {
