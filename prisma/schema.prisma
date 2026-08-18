@@ -30,3 +30,13 @@ model Adoptante {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
+
+model Adopcion {
+  id          Int      @id @default(autoincrement())
+  fecha       DateTime @default(now())
+  estado      String   @default("PENDIENTE")
+  adoptanteId Int
+  animalId    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
