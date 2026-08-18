@@ -1,4 +1,5 @@
 services:
+
   db:
     image: postgres:17
     container_name: pet-adoption-db
@@ -11,6 +12,19 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    container_name: pet-adoption-api
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      PORT: 3000
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/pet_adoption
+    ports:
+      - "3000:3000"
 
 volumes:
   postgres_data:
