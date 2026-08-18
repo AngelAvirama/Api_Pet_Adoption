@@ -3,6 +3,7 @@ const express = require('express');
 const animalRoutes = require('./routes/animal.routes');
 const adoptanteRoutes = require('./routes/adoptante.routes');
 const adopcionRoutes = require('./routes/adopcion.routes');
+const errorHandler = require('./middlewares/error.middleware');
 
 const app = express();
 
@@ -17,5 +18,6 @@ app.get('/', (req, res) => {
 app.use('/api/animals', animalRoutes);
 app.use('/api/adoptantes', adoptanteRoutes);
 app.use('/api/adopciones', adopcionRoutes);
+app.use(errorHandler);
 
 module.exports = app;
