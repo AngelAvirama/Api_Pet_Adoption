@@ -17,6 +17,8 @@ model Animal {
   estado    String   @default("DISPONIBLE")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  adopciones Adopcion[]
 }
 
 model Adoptante {
@@ -29,6 +31,8 @@ model Adoptante {
   direccion  String
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  adopciones Adopcion[]
 }
 
 model Adopcion {
@@ -39,4 +43,7 @@ model Adopcion {
   animalId    Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  adoptante Adoptante @relation(fields: [adoptanteId], references: [id])
+  animal    Animal    @relation(fields: [animalId], references: [id])
 }
