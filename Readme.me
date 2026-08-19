@@ -1,3 +1,173 @@
-Sistema de apdoción de mascotas
+# Pet Adoption API
+API REST para la gestión de adopciones de mascotas.
 
-Funcionando get
+## Tecnologías
+- Node.js
+- Express
+- Prisma ORM
+- PostgreSQL
+- Jest
+- Docker
+- Docker Compose
+- GitHub Actions
+- Render
+- Neon PostgreSQL
+
+## Arquitectura
+El proyecto utiliza una arquitectura basada en una API REST conectada a PostgreSQL mediante Prisma
+
+Cliente
+   ↓
+Express API
+   ↓
+Prisma ORM
+   ↓
+PostgreSQL
+
+## Entornos
+El proyecto cuenta con dos ambientes independientes:
+
+## Entorno 1: Testing
+GitHub branch: testing
+        ↓
+GitHub Actions
+        ↓
+Docker Compose
+        ↓
+PostgreSQL + API
+        ↓
+Tests + Coverage
+        ↓
+Render Testing
+        ↓
+PostgreSQL de Testing
+
+## API:
+https://pet-adoption-api-test.onrender.com
+
+## Entorno 2: Production
+GitHub branch: main
+        ↓
+GitHub Actions
+        ↓
+Docker Compose
+        ↓
+PostgreSQL + API
+        ↓
+Tests + Coverage
+        ↓
+Render Production
+        ↓
+Neon PostgreSQL
+
+## API:
+https://pet-adoption-api-prod.onrender.com
+
+## Variables de entorno
+La aplicación utiliza:
+
+DATABASE_URL=
+PORT=
+NODE_ENV=
+
+Las credenciales reales no se almacenan en el repositorio
+Cada ambiente utiliza sus propias variables y credenciales
+
+## Docker
+El proyecto incluye Dockerfile y docker-compose.yml
+Docker Compose permite ejecutar conjuntamente:
+
+PostgreSQL
+    +
+API Node.js
+
+## Base de datos
+La aplicación utiliza PostgreSQL
+Prisma administra el esquema mediante migraciones:
+npx prisma migrate deploy
+
+Las bases de Testing y Production son independientes
+
+## Pruebas
+Ejecutar las pruebas:
+npm test
+
+Ejecutar pruebas con cobertura:
+npm run test:ci
+
+El proyecto mantiene un quality gate de cobertura superior al 85%
+
+## CI/CD
+El proyecto utiliza GitHub Actions para automatizar pruebas y despliegues
+
+La rama testing ejecuta:
+
+Checkout
+   ↓
+Node.js
+   ↓
+npm ci
+   ↓
+Docker
+   ↓
+PostgreSQL
+   ↓
+Prisma migrations
+   ↓
+Tests
+   ↓
+Coverage
+   ↓
+Deploy a Render Testing
+
+La rama main ejecuta:
+
+Checkout
+   ↓
+Node.js
+   ↓
+npm ci
+   ↓
+Docker
+   ↓
+PostgreSQL
+   ↓
+Prisma migrations
+   ↓
+Tests
+   ↓
+Coverage
+   ↓
+Deploy a Render Production
+
+El despliegue se ejecuta únicamente cuando las pruebas y el quality gate terminan correctamente
+
+## Ramas
+main
+ └── Producción
+testing
+ └── Pruebas
+
+Los workflows se encuentran en:
+.github/workflows/
+├── pruebas.yml
+└── produccion.yml
+
+## Endpoints principales
+Animales:
+GET /api/animals
+Adoptantes:
+GET /api/adoptantes
+Adopciones:
+GET /api/adopciones
+
+La API puede ampliarse con los demás métodos HTTP definidos por cada recurso
+
+## Despliegue
+Testing:
+testing → GitHub Actions → Render Testing
+
+Production:
+main → GitHub Actions → Render Production
+
+Ambos pipelines ejecutan las pruebas antes del despliegue.
