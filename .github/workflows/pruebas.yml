@@ -55,3 +55,7 @@ jobs:
 
       - name: Ejecutar tests y cobertura
         run: npm run test:ci
+
+      - name: Deploy a Pruebas
+        if: success() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
