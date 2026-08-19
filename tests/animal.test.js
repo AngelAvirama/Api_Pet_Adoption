@@ -56,7 +56,7 @@ describe('Animal API', () => {
     const response = await request(app)
       .get('/api/animals');
 
-    expect(response.statusCode).toBe(900);
+    expect(response.statusCode).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
   });
 
