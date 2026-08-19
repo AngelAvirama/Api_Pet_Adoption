@@ -3,12 +3,10 @@ name: CI - Pruebas
 on:
   push:
     branches:
-      - main
-      - master
+      - testing
   pull_request:
     branches:
-      - main
-      - master
+      - testing
 
 jobs:
   test:
@@ -57,5 +55,5 @@ jobs:
         run: npm run test:ci
 
       - name: Deploy a Pruebas
-        if: success() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/testing'
         run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL_TEST }}"
