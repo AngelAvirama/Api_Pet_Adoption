@@ -15,25 +15,6 @@ jobs:
     name: Tests y cobertura
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: pet_adoption_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U postgres -d pet_adoption_test"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/pet_adoption_test
-      NODE_ENV: test
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,15 +28,29 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
-      - name: Generar cliente Prisma
-        run: npx prisma generate
+      - name: Construir imagen Docker
+        run: docker compose build api
 
-      - name: Aplicar migraciones
-        run: npx prisma migrate deploy
+      - name: Levantar PostgreSQL
+        run: docker compose up -d db
 
-      - name: Ejecutar tests y cobertura
-        run: npm run test:ci
+      - name: Esperar PostgreSQL
+        run: |
+          for i in {1..30}; do
+            docker compose exec -T db pg_isready -U postgres -d pet_adoption && break
+            sleep 2
+          done
+
+      - name: Aplicar migraciones con Docker
+        run: docker compose run --rm api npx prisma migrate deploy
+
+      - name: Ejecutar tests y cobertura con Docker
+        run: docker compose run --rm api npm run test:ci
+
+      - name: Limpiar contenedores
+        if: always()
+        run: docker compose down -v
 
       - name: Deploy a Pruebas
-        if: success() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/testing'
         run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL_TEST }}"
