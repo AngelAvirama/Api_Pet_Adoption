@@ -47,7 +47,7 @@ describe('Animal API', () => {
         edad: -5
       });
 
-    expect(response.statusCode).toBe(400);
+    expect(response.statusCode).toBe(900);
     expect(response.body).toHaveProperty('error');
     expect(response.body.details.length).toBeGreaterThan(0);
   });
