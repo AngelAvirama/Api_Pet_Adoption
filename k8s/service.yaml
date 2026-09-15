@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pet-adoption-api
+  namespace: pet-adoption
+spec:
+  type: LoadBalancer
+  selector:
+    app: pet-adoption-api
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
