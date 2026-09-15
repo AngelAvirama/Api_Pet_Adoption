@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: pet-adoption-api
-          image: 296121913016.dkr.ecr.us-east-1.amazonaws.com/pet-adoption-api:1.0.0
+          image: 296121913016.dkr.ecr.us-east-1.amazonaws.com/pet-adoption-api:1.0.1
           imagePullPolicy: Always
 
           ports:
