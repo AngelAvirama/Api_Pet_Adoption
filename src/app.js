@@ -15,6 +15,12 @@ app.get('/', (req, res) => {
   });
 });
 
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok'
+  });
+});
+
 app.use('/api/animals', animalRoutes);
 app.use('/api/adoptantes', adoptanteRoutes);
 app.use('/api/adopciones', adopcionRoutes);
