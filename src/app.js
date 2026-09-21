@@ -4,9 +4,11 @@ const animalRoutes = require('./routes/animal.routes');
 const adoptanteRoutes = require('./routes/adoptante.routes');
 const adopcionRoutes = require('./routes/adopcion.routes');
 const errorHandler = require('./middlewares/error.middleware');
+const traceIdMiddleware = require('./middlewares/traceId.middleware');
 
 const app = express();
 
+app.use(traceIdMiddleware);
 app.use(express.json());
 
 app.get('/', (req, res) => {
