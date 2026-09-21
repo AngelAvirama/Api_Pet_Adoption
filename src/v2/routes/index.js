@@ -1,6 +1,7 @@
 const express = require('express');
 const animalRoutes = require('./animal.routes');
 const adoptanteRoutes = require('./adoptante.routes');
+const adopcionRoutes = require('./adopcion.routes');
 
 const router = express.Router();
 
@@ -14,5 +15,6 @@ router.get('/health', (req, res) => {
 
 router.use(animalRoutes);
 router.use(adoptanteRoutes);
+router.use(adopcionRoutes);
 
 module.exports = router;
