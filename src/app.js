@@ -5,6 +5,7 @@ const adoptanteRoutes = require('./routes/adoptante.routes');
 const adopcionRoutes = require('./routes/adopcion.routes');
 const errorHandler = require('./middlewares/error.middleware');
 const traceIdMiddleware = require('./middlewares/traceId.middleware');
+const v2Routes = require('./v2/routes');
 
 const app = express();
 
@@ -26,6 +27,9 @@ app.get('/api/health', (req, res) => {
 app.use('/api/animals', animalRoutes);
 app.use('/api/adoptantes', adoptanteRoutes);
 app.use('/api/adopciones', adopcionRoutes);
+
+app.use('/api/v2', v2Routes);
+
 app.use(errorHandler);
 
 module.exports = app;
