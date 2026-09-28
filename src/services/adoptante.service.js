@@ -30,9 +30,14 @@ const remove = async (id) => {
   return adoptanteRepository.remove(id);
 };
 
+const getRandom = () => {
+  return adoptanteRepository.findRandom();
+};
+
 module.exports = {
   getAll,
   getById,
+  getRandom,
   create,
   update,
   remove
