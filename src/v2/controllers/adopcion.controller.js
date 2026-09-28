@@ -13,6 +13,27 @@ const getAdopciones = async (req, res, next) => {
   }
 };
 
+const getRandomAdopcion = async (req, res, next) => {
+  try {
+    const adopcion = await adopcionService.getRandom();
+
+    if (!adopcion) {
+      return res.status(404).json({
+        error: 'No adoptions found',
+        traceId: req.traceId
+      });
+    }
+
+    res.status(200).json({
+      data: adopcion,
+      traceId: req.traceId
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
-  getAdopciones
+  getAdopciones,
+  getRandomAdopcion
 };
