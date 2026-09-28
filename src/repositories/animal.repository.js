@@ -29,9 +29,21 @@ const remove = (id) => {
   });
 };
 
+const findRandom = async () => {
+  const animals = await prisma.animal.findMany();
+
+  if (animals.length === 0) {
+    return null;
+  }
+
+  const randomIndex = Math.floor(Math.random() * animals.length);
+  return animals[randomIndex];
+};
+
 module.exports = {
   findAll,
   findById,
+  findRandom,
   create,
   update,
   remove

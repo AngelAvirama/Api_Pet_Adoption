@@ -46,9 +46,26 @@ const remove = (id) => {
   });
 };
 
+const findRandom = async () => {
+  const adopciones = await prisma.adopcion.findMany({
+    include: {
+      animal: true,
+      adoptante: true
+    }
+  });
+
+  if (adopciones.length === 0) {
+    return null;
+  }
+
+  const randomIndex = Math.floor(Math.random() * adopciones.length);
+  return adopciones[randomIndex];
+};
+
 module.exports = {
   findAll,
   findById,
+  findRandom,
   create,
   update,
   remove
