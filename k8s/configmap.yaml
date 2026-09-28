@@ -6,3 +6,5 @@ metadata:
 data:
   NODE_ENV: production
   PORT: "3000"
+  JUAN_API_URL: "http://157-137-193-66.sslip.io"
+  LEONARDO_API_URL: "http://medical-documents-api-34-123-58-136.sslip.io"
