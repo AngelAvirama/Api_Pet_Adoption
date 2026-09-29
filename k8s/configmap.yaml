@@ -11,3 +11,6 @@ data:
   REDIS_ENABLED: "true"
   REDIS_HOST: "pet-adoption-redis.lql53i.0001.use1.cache.amazonaws.com"
   REDIS_PORT: "6379"
+  OTEL_SERVICE_NAME: api-b-adopcion
+  OTEL_EXPORTER_OTLP_ENDPOINT: https://otlp-gateway-prod-us-east-3.grafana.net/otlp
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
