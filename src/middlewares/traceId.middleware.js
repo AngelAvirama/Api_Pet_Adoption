@@ -1,12 +1,18 @@
-const crypto = require('crypto');
+const { trace } = require('@opentelemetry/api');
+const { randomUUID } = require('crypto');
 
-function traceIdMiddleware(req, res, next) {
-  const traceId = req.header('X-Trace-Id') || crypto.randomUUID();
+const traceIdMiddleware = (req, res, next) => {
+  const activeSpan = trace.getActiveSpan();
+
+  const otelTraceId = activeSpan?.spanContext().traceId;
+  const incomingTraceId = req.get('X-Trace-Id');
+
+  const traceId = otelTraceId || incomingTraceId || randomUUID();
 
   req.traceId = traceId;
   res.setHeader('X-Trace-Id', traceId);
 
   next();
-}
+};
 
 module.exports = traceIdMiddleware;
