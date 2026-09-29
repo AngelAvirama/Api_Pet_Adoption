@@ -3,6 +3,7 @@ const {
   recordCacheHit,
   recordCacheMiss
 } = require('../../config/otelMetrics');
+const logger = require('../../config/logger');
 
 const CACHE_TTL = 60;
 
@@ -20,7 +21,10 @@ const getExternalData = async (url, cacheKey, cacheName) => {
 
         recordCacheHit(cacheName);
 
-        console.log(`Redis cache hit: ${cacheKey}`);
+        logger.info('Redis cache hit', {
+          cacheKey,
+          cacheName
+        });
 
         return JSON.parse(cachedData);
       }
@@ -29,9 +33,14 @@ const getExternalData = async (url, cacheKey, cacheName) => {
 
       recordCacheMiss(cacheName);
 
-      console.log(`Redis cache miss: ${cacheKey}`);
+      logger.info('Redis cache miss', {
+        cacheKey,
+        cacheName
+      });
     } catch (error) {
-      console.error('Redis unavailable:', error.message);
+      logger.error('Redis unavailable', {
+        error: error.message
+      });
     }
   }
 
@@ -51,7 +60,10 @@ const getExternalData = async (url, cacheKey, cacheName) => {
         JSON.stringify(data)
       );
     } catch (error) {
-      console.error('Redis cache write error:', error.message);
+      logger.error('Redis cache write error', {
+        cacheKey,
+        error: error.message
+      });
     }
   }
 
@@ -99,7 +111,9 @@ const getCacheMetrics = async () => {
       misses: Number(misses || 0)
     };
   } catch (error) {
-    console.error('Redis metrics error:', error.message);
+    logger.error('Redis metrics error', {
+      error: error.message
+    });
 
     return {
       hits: 0,

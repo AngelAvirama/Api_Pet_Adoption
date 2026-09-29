@@ -5,6 +5,7 @@ const {
 } = require('../config/metrics');
 
 const { recordHttpRequest } = require('../config/otelMetrics');
+const logger = require('../config/logger');
 
 const metricsMiddleware = (req, res, next) => {
   const start = process.hrtime.bigint();
@@ -34,6 +35,14 @@ const metricsMiddleware = (req, res, next) => {
       route,
       statusCode: res.statusCode,
       durationMs: duration * 1000
+    });
+
+    logger.info('HTTP request completed', {
+      traceId: req.traceId,
+      method: req.method,
+      route,
+      statusCode: res.statusCode,
+      durationMs: Number((duration * 1000).toFixed(2))
     });
   });
 
