@@ -6,10 +6,13 @@ const adopcionRoutes = require('./routes/adopcion.routes');
 const errorHandler = require('./middlewares/error.middleware');
 const traceIdMiddleware = require('./middlewares/traceId.middleware');
 const v2Routes = require('./v2/routes');
+const metricsMiddleware = require('./middlewares/metrics.middleware');
+const { register } = require('./config/metrics');
 
 const app = express();
 
 app.use(traceIdMiddleware);
+app.use(metricsMiddleware);
 app.use(express.json());
 
 app.get('/', (req, res) => {
@@ -22,6 +25,11 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'ok'
   });
+});
+
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
 });
 
 app.use('/api/animals', animalRoutes);
