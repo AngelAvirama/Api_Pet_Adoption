@@ -1,12 +1,12 @@
 const { getCacheMetrics } = require('../services/external.service');
 
-const getCacheMetricsController = (req, res) => {
+const getCacheMetricsController = async (req, res) => {
   res.status(200).json({
-    data: getCacheMetrics(),
+    data: await getCacheMetrics(),
     traceId: req.traceId
   });
 };
 
 module.exports = {
   getCacheMetricsController
-};
+}

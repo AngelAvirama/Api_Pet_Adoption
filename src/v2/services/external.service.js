@@ -2,9 +2,6 @@ const { redisClient, connectRedis } = require('../../config/redis');
 
 const CACHE_TTL = 60;
 
-let cacheHits = 0;
-let cacheMisses = 0;
-
 const isRedisEnabled = () => process.env.REDIS_ENABLED !== 'false';
 
 const getExternalData = async (url, cacheKey) => {
@@ -15,12 +12,15 @@ const getExternalData = async (url, cacheKey) => {
       const cachedData = await redisClient.get(cacheKey);
 
       if (cachedData) {
-        cacheHits++;
+        await redisClient.incr('metrics:cache:hits');
+
         console.log(`Redis cache hit: ${cacheKey}`);
+
         return JSON.parse(cachedData);
       }
 
-      cacheMisses++;
+      await redisClient.incr('metrics:cache:misses');
+
       console.log(`Redis cache miss: ${cacheKey}`);
     } catch (error) {
       console.error('Redis unavailable:', error.message);
@@ -68,10 +68,35 @@ const getRandomImagen = () => {
   );
 };
 
-const getCacheMetrics = () => ({
-  hits: cacheHits,
-  misses: cacheMisses
-});
+const getCacheMetrics = async () => {
+  if (!isRedisEnabled()) {
+    return {
+      hits: 0,
+      misses: 0
+    };
+  }
+
+  try {
+    await connectRedis();
+
+    const [hits, misses] = await Promise.all([
+      redisClient.get('metrics:cache:hits'),
+      redisClient.get('metrics:cache:misses')
+    ]);
+
+    return {
+      hits: Number(hits || 0),
+      misses: Number(misses || 0)
+    };
+  } catch (error) {
+    console.error('Redis metrics error:', error.message);
+
+    return {
+      hits: 0,
+      misses: 0
+    };
+  }
+};
 
 module.exports = {
   getRandomVuelo,
