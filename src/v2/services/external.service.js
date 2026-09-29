@@ -2,16 +2,21 @@ const { redisClient, connectRedis } = require('../../config/redis');
 
 const CACHE_TTL = 60;
 
+let cacheHits = 0;
+let cacheMisses = 0;
+
 const getExternalData = async (url, cacheKey) => {
   await connectRedis();
 
   const cachedData = await redisClient.get(cacheKey);
 
   if (cachedData) {
+    cacheHits++;
     console.log(`Redis cache hit: ${cacheKey}`);
     return JSON.parse(cachedData);
   }
 
+  cacheMisses++;
   console.log(`Redis cache miss: ${cacheKey}`);
 
   const response = await fetch(url);
@@ -49,7 +54,13 @@ const getRandomImagen = () => {
   );
 };
 
+const getCacheMetrics = () => ({
+  hits: cacheHits,
+  misses: cacheMisses
+});
+
 module.exports = {
   getRandomVuelo,
-  getRandomImagen
+  getRandomImagen,
+  getCacheMetrics
 };
