@@ -27,6 +27,14 @@ spec:
             - secretRef:
                 name: pet-adoption-secret
 
+          env:
+            - name: OTEL_EXPORTER_OTLP_HEADERS
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-otlp
+                  key: OTEL_EXPORTER_OTLP_HEADERS
+                  optional: true
+
           resources:
             requests:
               cpu: "100m"

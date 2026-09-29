@@ -1,4 +1,5 @@
 require('dotenv').config();
+require('./telemetry');
 
 const app = require('./app');
 
