@@ -1,10 +1,14 @@
 const { redisClient, connectRedis } = require('../../config/redis');
+const {
+  recordCacheHit,
+  recordCacheMiss
+} = require('../../config/otelMetrics');
 
 const CACHE_TTL = 60;
 
 const isRedisEnabled = () => process.env.REDIS_ENABLED !== 'false';
 
-const getExternalData = async (url, cacheKey) => {
+const getExternalData = async (url, cacheKey, cacheName) => {
   if (isRedisEnabled()) {
     try {
       await connectRedis();
@@ -14,12 +18,16 @@ const getExternalData = async (url, cacheKey) => {
       if (cachedData) {
         await redisClient.incr('metrics:cache:hits');
 
+        recordCacheHit(cacheName);
+
         console.log(`Redis cache hit: ${cacheKey}`);
 
         return JSON.parse(cachedData);
       }
 
       await redisClient.incr('metrics:cache:misses');
+
+      recordCacheMiss(cacheName);
 
       console.log(`Redis cache miss: ${cacheKey}`);
     } catch (error) {
@@ -55,7 +63,8 @@ const getRandomVuelo = () => {
 
   return getExternalData(
     url,
-    'juan:vuelo:random'
+    'juan:vuelo:random',
+    'juan_vuelo'
   );
 };
 
@@ -64,7 +73,8 @@ const getRandomImagen = () => {
 
   return getExternalData(
     url,
-    'leonardo:imagen:random'
+    'leonardo:imagen:random',
+    'leonardo_imagen'
   );
 };
 
