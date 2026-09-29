@@ -4,6 +4,8 @@ const {
   httpErrorsTotal
 } = require('../config/metrics');
 
+const { recordHttpRequest } = require('../config/otelMetrics');
+
 const metricsMiddleware = (req, res, next) => {
   const start = process.hrtime.bigint();
 
@@ -26,6 +28,13 @@ const metricsMiddleware = (req, res, next) => {
     if (res.statusCode >= 400) {
       httpErrorsTotal.inc(labels);
     }
+
+    recordHttpRequest({
+      method: req.method,
+      route,
+      statusCode: res.statusCode,
+      durationMs: duration * 1000
+    });
   });
 
   next();
