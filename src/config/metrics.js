@@ -1,4 +1,5 @@
 const client = require('prom-client');
+const { getCacheMetrics } = require('../v2/services/external.service');
 
 const register = new client.Registry();
 
@@ -28,9 +29,33 @@ const httpErrorsTotal = new client.Counter({
   registers: [register]
 });
 
+const cacheHitsTotal = new client.Gauge({
+  name: 'cache_hits_total',
+  help: 'Total number of cache hits',
+  registers: [register],
+
+  async collect() {
+    const { hits } = await getCacheMetrics();
+    this.set(hits);
+  }
+});
+
+const cacheMissesTotal = new client.Gauge({
+  name: 'cache_misses_total',
+  help: 'Total number of cache misses',
+  registers: [register],
+
+  async collect() {
+    const { misses } = await getCacheMetrics();
+    this.set(misses);
+  }
+});
+
 module.exports = {
   register,
   httpRequestsTotal,
   httpRequestDuration,
-  httpErrorsTotal
+  httpErrorsTotal,
+  cacheHitsTotal,
+  cacheMissesTotal
 };
