@@ -3,11 +3,14 @@ kind: Service
 metadata:
   name: pet-adoption-api
   namespace: pet-adoption
+  labels:
+    app: pet-adoption-api
 spec:
   type: LoadBalancer
   selector:
     app: pet-adoption-api
   ports:
-    - protocol: TCP
+    - name: http
+      protocol: TCP
       port: 80
       targetPort: 3000
