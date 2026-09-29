@@ -5,19 +5,27 @@ const CACHE_TTL = 60;
 let cacheHits = 0;
 let cacheMisses = 0;
 
+const isRedisEnabled = () => process.env.REDIS_ENABLED !== 'false';
+
 const getExternalData = async (url, cacheKey) => {
-  await connectRedis();
+  if (isRedisEnabled()) {
+    try {
+      await connectRedis();
 
-  const cachedData = await redisClient.get(cacheKey);
+      const cachedData = await redisClient.get(cacheKey);
 
-  if (cachedData) {
-    cacheHits++;
-    console.log(`Redis cache hit: ${cacheKey}`);
-    return JSON.parse(cachedData);
+      if (cachedData) {
+        cacheHits++;
+        console.log(`Redis cache hit: ${cacheKey}`);
+        return JSON.parse(cachedData);
+      }
+
+      cacheMisses++;
+      console.log(`Redis cache miss: ${cacheKey}`);
+    } catch (error) {
+      console.error('Redis unavailable:', error.message);
+    }
   }
-
-  cacheMisses++;
-  console.log(`Redis cache miss: ${cacheKey}`);
 
   const response = await fetch(url);
 
@@ -27,11 +35,17 @@ const getExternalData = async (url, cacheKey) => {
 
   const data = await response.json();
 
-  await redisClient.setEx(
-    cacheKey,
-    CACHE_TTL,
-    JSON.stringify(data)
-  );
+  if (isRedisEnabled()) {
+    try {
+      await redisClient.setEx(
+        cacheKey,
+        CACHE_TTL,
+        JSON.stringify(data)
+      );
+    } catch (error) {
+      console.error('Redis cache write error:', error.message);
+    }
+  }
 
   return data;
 };

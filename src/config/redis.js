@@ -12,9 +12,15 @@ redisClient.on('error', (error) => {
 });
 
 const connectRedis = async () => {
+  if (process.env.REDIS_ENABLED === 'false') {
+    return false;
+  }
+
   if (!redisClient.isOpen) {
     await redisClient.connect();
   }
+
+  return true;
 };
 
 module.exports = {
