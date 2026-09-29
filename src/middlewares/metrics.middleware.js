@@ -11,9 +11,7 @@ const metricsMiddleware = (req, res, next) => {
     const duration = Number(process.hrtime.bigint() - start) / 1e9;
 
     const route = req.route?.path
-      ? req.originalUrl.startsWith('/api/v2')
-        ? `/api/v2${req.baseUrl}${req.route.path}`
-        : `${req.baseUrl}${req.route.path}`
+      ? `${req.baseUrl}${req.route.path}`
       : req.path;
 
     const labels = {
