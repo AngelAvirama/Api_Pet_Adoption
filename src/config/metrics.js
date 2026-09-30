@@ -30,7 +30,7 @@ const httpErrorsTotal = new client.Counter({
 });
 
 const cacheHitsTotal = new client.Gauge({
-  name: 'cache_hits_total',
+  name: 'redis_cache_hits_total',
   help: 'Total number of cache hits',
   registers: [register],
 
@@ -41,7 +41,7 @@ const cacheHitsTotal = new client.Gauge({
 });
 
 const cacheMissesTotal = new client.Gauge({
-  name: 'cache_misses_total',
+  name: 'redis_cache_misses_total',
   help: 'Total number of cache misses',
   registers: [register],
 
