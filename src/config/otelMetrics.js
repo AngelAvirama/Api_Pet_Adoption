@@ -11,12 +11,12 @@ const httpDuration = meter.createHistogram('http.server.duration', {
   unit: 'ms'
 });
 
-const cacheHits = meter.createCounter('otel.cache.hits', {
-  description: 'Total number of cache hits recorded by OpenTelemetry'
+const cacheHits = meter.createCounter('cache.hits', {
+  description: 'Total number of cache hits'
 });
 
-const cacheMisses = meter.createCounter('otel.cache.misses', {
-  description: 'Total number of cache misses recorded by OpenTelemetry'
+const cacheMisses = meter.createCounter('cache.misses', {
+  description: 'Total number of cache misses'
 });
 
 const recordHttpRequest = ({
