@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const { NodeSDK } = require('@opentelemetry/sdk-node');
+
 const {
   getNodeAutoInstrumentations
 } = require('@opentelemetry/auto-instrumentations-node');
@@ -14,8 +15,16 @@ const {
 } = require('@opentelemetry/exporter-metrics-otlp-proto');
 
 const {
+  OTLPLogExporter
+} = require('@opentelemetry/exporter-logs-otlp-proto');
+
+const {
   PeriodicExportingMetricReader
 } = require('@opentelemetry/sdk-metrics');
+
+const {
+  BatchLogRecordProcessor
+} = require('@opentelemetry/sdk-logs');
 
 const {
   resourceFromAttributes
@@ -40,10 +49,17 @@ const metricReader = new PeriodicExportingMetricReader({
   exportIntervalMillis: 15000
 });
 
+const logExporter = new OTLPLogExporter();
+
 const sdk = new NodeSDK({
   resource,
   traceExporter,
   metricReader,
+  logRecordProcessors: [
+    new BatchLogRecordProcessor({
+      exporter: logExporter
+    })
+  ],
   instrumentations: [
     getNodeAutoInstrumentations()
   ]
