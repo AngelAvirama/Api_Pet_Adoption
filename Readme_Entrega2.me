@@ -1,0 +1,641 @@
+# README Entrega 2
+
+## Responsabilidades del equipo
+
+El proyecto se divide entre tres integrantes y nuestras tres nubes.
+
+| Integrante | Nube | API / entidades principales | Responsabilidades |
+|---|---|---|---|
+| **Ángel** | AWS | Animal, Adoptante, Adopción | API de adopción, despliegue en EKS, caché con ElastiCache Redis, monitoreo nativo con CloudWatch y observabilidad de la API. |
+| **Juan** | OCI | Vuelos, Pasajeros, Asientos | API de vuelos y **Object Storage** para el almacenamiento de archivos/adjuntos. |
+| **Leo** | GCP | Imagen, Nota médica, Documento generado | **Orquestador**, mensajería asíncrona con **Pub/Sub** y **consumidor de mensajes**. |
+
+## Responsabilidad de mi parte — AWS
+
+La responsabilidad principal en AWS es la **API de adopción** y los componentes de caché y observabilidad.
+
+### API de adopción
+
+La API administra:
+
+- Animales.
+- Adoptantes.
+- Adopciones.
+
+En `/api/v2`, la API integra información de los otros servicios en tiempo real.
+
+Por ejemplo, una consulta de un animal puede incluir:
+
+- Animal local de AWS.
+- Vuelo obtenido desde la API de Juan.
+- Imagen obtenida desde la API de Leo.
+
+### Caché
+
+Se implementó:
+
+- Amazon ElastiCache Redis.
+- Estrategia Cache-Aside.
+- TTL de 60 segundos.
+- Cache Hits y Cache Misses.
+- Endpoint `/api/v2/cache/metrics`.
+
+### Kubernetes
+
+Se realizó el despliegue de la API en:
+
+- Amazon EKS.
+- 2 réplicas mínimas.
+- HPA hasta 4 réplicas.
+- Readiness probe.
+- Liveness probe.
+- Requests y limits.
+- ConfigMap y Secret.
+
+### Monitoreo y observabilidad
+
+Se implementó:
+
+- Amazon CloudWatch.
+- Container Insights.
+- CloudWatch Logs.
+- Prometheus.
+- Grafana Cloud.
+- OpenTelemetry.
+- Logs estructurados.
+- Trace ID.
+- Métricas RED.
+- Alerta de errores HTTP.
+
+## Responsabilidad de Juan — OCI
+
+Juan es responsable de la API desplegada en OCI y de sus entidades relacionadas con vuelos:
+
+- Vuelos.
+- Pasajeros.
+- Asientos.
+
+Además, Juan es responsable del **Object Storage** utilizado por la solución para almacenar archivos o adjuntos.
+
+Su API proporciona información que puede ser consultada en tiempo real por las demás APIs del sistema.
+
+En la integración de la API de AWS, por ejemplo, se consume un vuelo aleatorio desde el servicio de Juan.
+
+## Responsabilidad de Leo — GCP
+
+Leo es responsable de la API desplegada en GCP y de las entidades:
+
+- Imagen.
+- Nota médica.
+- Documento generado.
+
+Además, Leo mantiene los componentes de integración asíncrona:
+
+### Orquestador
+
+Coordina el flujo entre las APIs de los tres clouds.
+
+### Pub/Sub
+
+Proporciona la mensajería asíncrona utilizada para desacoplar procesos y manejar eventos.
+
+### Consumidor
+
+Procesa los mensajes recibidos de la cola y permite continuar el flujo de procesamiento de la solución.
+
+La API de AWS consume, por ejemplo, una imagen aleatoria proporcionada por la API de Leo.
+
+---
+
+# 1. Descripción
+
+Este readme describe la implementación de caché, monitoreo y
+observabilidad de la API de adopción desplegada en AWS.
+
+Componentes principales:
+
+-   Amazon ElastiCache Redis
+-   Amazon EKS
+-   Amazon CloudWatch
+-   Container Insights
+-   Prometheus
+-   Grafana Cloud
+-   OpenTelemetry
+-   Alertas de Grafana
+
+## 2. Caché con Amazon ElastiCache Redis
+
+La API utiliza **Amazon ElastiCache Redis** como mecanismo de caché para
+las respuestas obtenidas desde APIs externas.
+
+La estrategia utilizada es **Cache-Aside**:
+
+1.  La API consulta Redis.
+2.  Si existe la información, se devuelve desde la caché (**Cache
+    Hit**).
+3.  Si no existe, se consulta la API externa (**Cache Miss**).
+4.  La respuesta se almacena en Redis.
+5.  El dato expira después de 60 segundos.
+
+### Configuración
+
+  Característica   Valor
+  ---------------- ----------------------
+  Proveedor        AWS
+  Servicio         Amazon ElastiCache
+  Motor            Redis
+  Cluster          `pet-adoption-redis`
+  Región           `us-east-1`
+  TTL              60 segundos
+  Estrategia       Cache-Aside
+
+### Claves utilizadas
+
+  -----------------------------------------------------------------------
+  Clave                               Información
+  ----------------------------------- -----------------------------------
+  `juan:vuelo:random`                 Vuelo aleatorio obtenido desde la
+                                      API de Juan
+
+  `leonardo:imagen:random`            Imagen aleatoria obtenida desde la
+                                      API de Leonardo
+  -----------------------------------------------------------------------
+
+### Métricas de caché
+
+Se registran:
+
+-   Cache Hits
+-   Cache Misses
+
+En Redis se utilizan:
+
+``` text
+metrics:cache:hits
+metrics:cache:misses
+```
+
+Las métricas también se instrumentan con OpenTelemetry.
+
+### Endpoint
+
+``` http
+GET /api/v2/cache/metrics
+```
+
+Ejemplo:
+
+``` json
+{
+  "data": {
+    "hits": 10,
+    "misses": 2
+  },
+  "traceId": "..."
+}
+```
+
+La expiración se realiza automáticamente mediante el TTL de Redis. No
+existe una invalidación manual independiente.
+
+## 3. Kubernetes --- Amazon EKS
+
+La API está desplegada en Amazon EKS.
+
+  Característica     Valor
+  ------------------ ----------------------
+  Cluster            `pet-adoption-eks`
+  Región             `us-east-1`
+  Namespace          `pet-adoption`
+  Node group         `pet-adoption-nodes`
+  Instancia          `t3.small`
+  Réplicas mínimas   2
+  Réplicas máximas   4
+
+### Recursos
+
+Requests:
+
+``` yaml
+cpu: 100m
+memory: 128Mi
+```
+
+Limits:
+
+``` yaml
+cpu: 500m
+memory: 512Mi
+```
+
+### Readiness y liveness
+
+Se utiliza:
+
+``` http
+GET /api/health
+```
+
+como readiness probe y liveness probe.
+
+Readiness:
+
+``` text
+initialDelaySeconds: 10
+periodSeconds: 10
+timeoutSeconds: 3
+failureThreshold: 3
+```
+
+Liveness:
+
+``` text
+initialDelaySeconds: 20
+periodSeconds: 20
+timeoutSeconds: 3
+failureThreshold: 3
+```
+
+### HPA
+
+El Horizontal Pod Autoscaler está configurado con:
+
+-   Mínimo: 2 pods
+-   Máximo: 4 pods
+-   CPU objetivo: 50%
+
+Durante las pruebas se verificó el escalamiento:
+
+``` text
+2 → 3 → 4
+```
+
+y posteriormente:
+
+``` text
+4 → 3 → 2
+```
+
+## 4. ConfigMap y Secret
+
+El Deployment utiliza un **ConfigMap** para variables de configuración
+no sensibles.
+
+Las credenciales y datos sensibles se manejan mediante un **Secret** de
+Kubernetes.
+
+Las credenciales no se almacenan directamente en el código fuente.
+
+## 5. Monitoreo nativo con Amazon CloudWatch
+
+Para monitorear el cluster EKS se instaló el add-on:
+
+``` text
+amazon-cloudwatch-observability
+```
+
+Estado verificado:
+
+``` text
+ACTIVE
+```
+
+El add-on instala y administra componentes para recopilar métricas y
+logs.
+
+Namespace:
+
+``` text
+amazon-cloudwatch
+```
+
+Componentes principales:
+
+-   CloudWatch Agent
+-   Fluent Bit
+-   CloudWatch Observability Controller
+
+## 6. Container Insights
+
+Las métricas de Kubernetes se recopilan mediante **Container Insights**.
+
+Namespace de métricas:
+
+``` text
+ContainerInsights
+```
+
+Cluster:
+
+``` text
+pet-adoption-eks
+```
+
+Entre las métricas disponibles están:
+
+``` text
+pod_cpu_utilization
+pod_memory_utilization
+pod_cpu_usage_total
+pod_memory_working_set
+container_cpu_utilization
+container_memory_utilization
+pod_status_pending
+pod_status_scheduled
+pod_status_running
+replicas_ready
+status_replicas_unavailable
+```
+
+Estas métricas permiten observar CPU, memoria, estado de los pods,
+containers y réplicas.
+
+### Visualización
+
+En AWS:
+
+``` text
+CloudWatch
+→ Container Insights
+→ EKS
+→ pet-adoption-eks
+```
+
+También pueden consultarse en:
+
+``` text
+CloudWatch
+→ Métricas
+→ ContainerInsights
+```
+
+## 7. Logs en CloudWatch
+
+Fluent Bit recopila los logs de los containers y los envía a CloudWatch
+Logs.
+
+Log Group:
+
+``` text
+/aws/containerinsights/pet-adoption-eks/application
+```
+
+Dentro de este Log Group existen streams correspondientes a los pods de:
+
+``` text
+pet-adoption-api
+```
+
+Esto permite consultar desde AWS los logs generados por las diferentes
+réplicas de la API.
+
+## 8. Prometheus
+
+Prometheus recopila las métricas expuestas por la API mediante:
+
+``` http
+GET /metrics
+```
+
+El `ServiceMonitor` está configurado para realizar la consulta cada:
+
+``` text
+15 segundos
+```
+
+Se recopilan métricas de:
+
+-   Solicitudes HTTP
+-   Duración de solicitudes
+-   Errores HTTP
+-   Cache Hits
+-   Cache Misses
+
+## 9. Métricas RED
+
+El dashboard utiliza métricas relacionadas con:
+
+### Rate
+
+Cantidad de solicitudes recibidas.
+
+### Errors
+
+Respuestas HTTP `4xx` y `5xx`.
+
+### Duration
+
+Duración de las solicitudes.
+
+Se visualizan principalmente:
+
+-   Request Rate
+-   Errores por endpoint
+-   Latencia p50
+-   Latencia p95
+
+## 10. Grafana Cloud
+
+Grafana Cloud se utiliza para visualizar métricas y trazas enviadas
+mediante OpenTelemetry.
+
+El dashboard incluye:
+
+-   Request Rate
+-   Errores 4xx/5xx
+-   Latencia p50
+-   Latencia p95
+-   Métricas por endpoint
+-   Resumen de endpoints
+-   Cache Hits
+-   Cache Misses
+-   Métricas de la cola del sistema
+
+Las métricas acumuladas de caché se representan mediante:
+
+``` text
+cache_hits_total
+cache_misses_total
+```
+
+## 11. OpenTelemetry
+
+La API utiliza OpenTelemetry para instrumentar:
+
+-   Traces
+-   Métricas
+-   Logs
+
+Servicio:
+
+``` text
+api-b-adopcion
+```
+
+Una solicitud como:
+
+``` http
+GET /api/v2/animals/:id
+```
+
+puede generar operaciones relacionadas con:
+
+-   La API de adopción
+-   Redis
+-   La API externa de vuelos
+-   La API externa de imágenes
+
+## 12. Trace ID
+
+Las solicitudes utilizan un identificador de trazabilidad.
+
+El `traceId` se incluye en:
+
+-   Respuestas HTTP
+-   Logs estructurados
+-   Trazas de OpenTelemetry
+
+Ejemplo:
+
+``` json
+{
+  "level": "info",
+  "service": "api-b-adopcion",
+  "traceId": "c99484aae5be4defdcb949e12f60f22c",
+  "message": "Redis cache miss"
+}
+```
+
+Esto permite relacionar una solicitud con sus logs y trazas.
+
+## 13. Logs estructurados
+
+Los logs de la aplicación se generan en formato JSON.
+
+Ejemplo:
+
+``` json
+{
+  "timestamp": "2026-09-30T02:36:56.037Z",
+  "level": "info",
+  "service": "api-b-adopcion",
+  "traceId": "c99484aae5be4defdcb949e12f60f22c",
+  "message": "Redis cache miss",
+  "cacheKey": "juan:vuelo:random",
+  "cacheName": "juan_vuelo"
+}
+```
+
+También se registran eventos de:
+
+-   Cache hit
+-   Cache miss
+-   Errores de Redis
+-   Finalización de solicitudes HTTP
+
+## 14. Alertas
+
+Se configuró una alerta en Grafana:
+
+``` text
+API V2 - HTTP Errors
+```
+
+La alerta detecta respuestas HTTP:
+
+``` text
+4xx
+5xx
+```
+
+El canal de notificación es:
+
+``` text
+clic-s2-email
+```
+
+La alerta fue probada generando errores HTTP y se verificó la recepción
+de la notificación por correo electrónico.
+
+## 15. Flujo de caché y observabilidad
+
+``` text
+Cliente
+   |
+   v
+API /api/v2
+   |
+   +----> Redis (ElastiCache)
+   |          |
+   |          +--> Cache Hit
+   |          |
+   |          +--> Cache Miss
+   |
+   +----> APIs externas
+   |
+   +----> Prometheus
+   |
+   +----> OpenTelemetry
+              |
+              v
+         Grafana Cloud
+
+
+EKS
+ |
+ +--> CloudWatch Agent ---> CloudWatch Metrics
+ |
+ +--> Fluent Bit --------> CloudWatch Logs
+```
+
+## 16. Servicios utilizados
+
+  Servicio                   Función
+  -------------------------- -----------------------------
+  Amazon EKS                 Ejecución de la API
+  Amazon RDS PostgreSQL      Base de datos
+  Amazon ECR                 Almacenamiento de imágenes
+  Amazon ElastiCache Redis   Caché
+  Amazon CloudWatch          Monitoreo y logs nativos
+  Container Insights         Métricas de Kubernetes
+  Prometheus                 Recolección de métricas
+  Grafana Cloud              Dashboards y observabilidad
+  OpenTelemetry              Trazas, métricas y logs
+
+## 17. Comandos de verificación
+
+### CloudWatch Observability
+
+``` bash
+aws eks describe-addon   --cluster-name pet-adoption-eks   --addon-name amazon-cloudwatch-observability   --region us-east-1   --query "addon.status"   --output text
+```
+
+Resultado esperado:
+
+``` text
+ACTIVE
+```
+
+### Pods de CloudWatch
+
+``` bash
+kubectl get pods -n amazon-cloudwatch
+```
+
+### Métricas Container Insights
+
+``` bash
+aws cloudwatch list-metrics   --namespace ContainerInsights   --region us-east-1   --dimensions Name=ClusterName,Value=pet-adoption-eks   --query "Metrics[].MetricName"   --output text
+```
+
+### Logs de la API
+
+``` bash
+aws logs describe-log-streams   --log-group-name "/aws/containerinsights/pet-adoption-eks/application"   --region us-east-1   --query "logStreams[?contains(logStreamName, 'pet-adoption')].logStreamName"   --output text
+```
+
+### Caché
+
+``` http
+GET /api/v2/cache/metrics
+```
