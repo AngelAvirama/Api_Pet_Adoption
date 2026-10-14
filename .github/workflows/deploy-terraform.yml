@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm_deploy:
-        description: "Confirm creation of AWS resources with possible costs"        
+        description: "Confirm creation of AWS resources with possible costs"
         required: true
         type: boolean
         default: false
@@ -64,9 +64,17 @@ jobs:
       - name: Login to Amazon ECR
         id: ecr
         run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          set -euo pipefail
+
+          ACCOUNT_ID=$(aws sts get-caller-identity \
+            --query Account --output text)
+
           REGISTRY="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-          REPOSITORY_URL=$(terraform -chdir=terraform output -raw ecr_repository_url)
+
+          REPOSITORY_URL=$(aws ecr describe-repositories \
+            --repository-names pet-adoption-api \
+            --query 'repositories[0].repositoryUri' \
+            --output text)
 
           echo "registry=$REGISTRY" >> "$GITHUB_OUTPUT"
           echo "repository_url=$REPOSITORY_URL" >> "$GITHUB_OUTPUT"
@@ -76,21 +84,107 @@ jobs:
 
       - name: Build and push API image
         env:
-          REGISTRY: ${{ steps.ecr.outputs.registry }}
           REPOSITORY_URL: ${{ steps.ecr.outputs.repository_url }}
-          IMAGE_TAG: ${{ github.sha }}
+          IMAGE_TAG: ${{ github.sha }}-${{ github.run_attempt }}
         run: |
+          set -euo pipefail
+
           docker build --tag "${REPOSITORY_URL}:${IMAGE_TAG}" .
           docker push "${REPOSITORY_URL}:${IMAGE_TAG}"
 
       - name: Plan infrastructure
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-          TF_VAR_image_tag: ${{ github.sha }}
+          TF_VAR_image_tag: ${{ github.sha }}-${{ github.run_attempt }}
+          TF_VAR_api_desired_count: "0"
         run: terraform -chdir=terraform plan -out=tfplan
 
-      - name: Apply infrastructure
+      - name: Create infrastructure with API stopped
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-          TF_VAR_image_tag: ${{ github.sha }}
+          TF_VAR_image_tag: ${{ github.sha }}-${{ github.run_attempt }}
+          TF_VAR_api_desired_count: "0"
         run: terraform -chdir=terraform apply -auto-approve tfplan
+
+      - name: Run Prisma database migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CLUSTER=$(terraform -chdir=terraform output -raw ecs_cluster_name)
+          TASK_DEFINITION=$(terraform -chdir=terraform output -raw api_task_definition_arn)
+          SECURITY_GROUP=$(terraform -chdir=terraform output -raw ecs_security_group_id)
+
+          SUBNETS=$(terraform -chdir=terraform output -json public_subnet_ids \
+            | jq -r 'join(",")')
+
+          NETWORK_CONFIGURATION="awsvpcConfiguration={subnets=[${SUBNETS}],securityGroups=[${SECURITY_GROUP}],assignPublicIp=ENABLED}"
+
+          TASK_RESULT=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$TASK_DEFINITION" \
+            --launch-type FARGATE \
+            --network-configuration "$NETWORK_CONFIGURATION" \
+            --overrides '{"containerOverrides":[{"name":"api","command":["npx","prisma","migrate","deploy"]}]}' \
+            --output json)
+
+          echo "$TASK_RESULT" | jq '.failures'
+
+          TASK_ARN=$(echo "$TASK_RESULT" | jq -r '.tasks[0].taskArn // empty')
+
+          if [ -z "$TASK_ARN" ]; then
+            echo "No se pudo iniciar la tarea de migración."
+            exit 1
+          fi
+
+          echo "Esperando a que terminen las migraciones..."
+          aws ecs wait tasks-stopped \
+            --cluster "$CLUSTER" \
+            --tasks "$TASK_ARN"
+
+          TASK_DETAILS=$(aws ecs describe-tasks \
+            --cluster "$CLUSTER" \
+            --tasks "$TASK_ARN")
+
+          echo "$TASK_DETAILS" | jq '.tasks[0] | {lastStatus, stoppedReason, containers}'
+
+          EXIT_CODE=$(echo "$TASK_DETAILS" \
+            | jq -r '[.tasks[0].containers[] | select(.name == "api")][0].exitCode // empty')
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "Las migraciones fallaron. Código de salida: ${EXIT_CODE:-desconocido}"
+            exit 1
+          fi
+
+          echo "Migraciones de Prisma completadas correctamente."
+
+      - name: Start API service
+        env:
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+          TF_VAR_image_tag: ${{ github.sha }}-${{ github.run_attempt }}
+          TF_VAR_api_desired_count: "1"
+        run: terraform -chdir=terraform apply -auto-approve
+
+      - name: Verify API health
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          API_URL=$(terraform -chdir=terraform output -raw api_url)
+
+          echo "Comprobando ${API_URL}/api/health"
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error \
+              "${API_URL}/api/health"; then
+              echo
+              echo "API disponible correctamente."
+              exit 0
+            fi
+
+            echo "Intento ${attempt}/30. Esperando 10 segundos..."
+            sleep 10
+          done
+
+          echo "La API no respondió correctamente a tiempo."
+          exit 1
