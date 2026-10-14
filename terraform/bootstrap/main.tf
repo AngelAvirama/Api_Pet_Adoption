@@ -1,4 +1,3 @@
-
 terraform {
   required_version = ">= 1.6.0"
 
@@ -14,8 +13,10 @@ provider "aws" {
   region = "us-east-1"
 }
 
+data "aws_caller_identity" "current" {}
+
 resource "aws_s3_bucket" "terraform_state" {
-  bucket = "pet-adoption-terraform-state-angel-avirama"
+  bucket = "pet-adoption-tfstate-${data.aws_caller_identity.current.account_id}-us-east-1"
 
   lifecycle {
     prevent_destroy = true
