@@ -1,12 +1,13 @@
 
 provider "aws" {
-  region = "us-east-1"
+  region = var.aws_region
 
   default_tags {
     tags = {
-      Project   = "Api_Pet_Adoption"
-      ManagedBy = "Terraform"
-      Delivery  = "3"
+      Project     = "Api_Pet_Adoption"
+      ManagedBy   = "Terraform"
+      Delivery    = "3"
+      Environment = var.environment
     }
   }
 }
