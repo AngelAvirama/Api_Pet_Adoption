@@ -1,0 +1,96 @@
+
+name: Deploy Terraform and ECS
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_deploy:
+        description: "Confirm creation of AWS resources with possible costs"        
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: pet-adoption-terraform-deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::296121913016:role/github-actions-pet-adoption
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  deploy:
+    name: Build and deploy API
+    if: ${{ inputs.confirm_deploy == true }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Initialize Terraform
+        run: terraform -chdir=terraform init
+
+      - name: Validate Terraform
+        run: |
+          terraform -chdir=terraform fmt -check
+          terraform -chdir=terraform validate
+
+      - name: Create ECR repository
+        env:
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+        run: |
+          terraform -chdir=terraform apply \
+            -target=aws_ecr_repository.api \
+            -auto-approve
+
+      - name: Login to Amazon ECR
+        id: ecr
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          REGISTRY="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          REPOSITORY_URL=$(terraform -chdir=terraform output -raw ecr_repository_url)
+
+          echo "registry=$REGISTRY" >> "$GITHUB_OUTPUT"
+          echo "repository_url=$REPOSITORY_URL" >> "$GITHUB_OUTPUT"
+
+          aws ecr get-login-password --region "$AWS_REGION" \
+            | docker login --username AWS --password-stdin "$REGISTRY"
+
+      - name: Build and push API image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          REPOSITORY_URL: ${{ steps.ecr.outputs.repository_url }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build --tag "${REPOSITORY_URL}:${IMAGE_TAG}" .
+          docker push "${REPOSITORY_URL}:${IMAGE_TAG}"
+
+      - name: Plan infrastructure
+        env:
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+          TF_VAR_image_tag: ${{ github.sha }}
+        run: terraform -chdir=terraform plan -out=tfplan
+
+      - name: Apply infrastructure
+        env:
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+          TF_VAR_image_tag: ${{ github.sha }}
+        run: terraform -chdir=terraform apply -auto-approve tfplan
