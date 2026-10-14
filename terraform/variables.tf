@@ -40,3 +40,9 @@ variable "db_password" {
   type        = string
   sensitive   = true
 }
+
+variable "image_tag" {
+  description = "Immutable tag of the API image in ECR"
+  type        = string
+  default     = "initial"
+}

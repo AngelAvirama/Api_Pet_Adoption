@@ -30,6 +30,10 @@ resource "aws_iam_role_policy_attachment" "ecs_execution" {
 resource "aws_cloudwatch_log_group" "api" {
   name              = "/ecs/${var.project_name}-${var.environment}"
   retention_in_days = 7
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-logs"
+  }
 }
 
 resource "aws_ecs_task_definition" "api" {
@@ -43,7 +47,7 @@ resource "aws_ecs_task_definition" "api" {
   container_definitions = jsonencode([
     {
       name      = "api"
-      image     = "${aws_ecr_repository.api.repository_url}:latest"
+      image     = "${aws_ecr_repository.api.repository_url}:${var.image_tag}"
       essential = true
 
       portMappings = [{
@@ -63,10 +67,13 @@ resource "aws_ecs_task_definition" "api" {
         {
           name  = "REDIS_ENABLED"
           value = "false"
-        },
+        }
+      ]
+
+      secrets = [
         {
-          name  = "DATABASE_URL"
-          value = "postgresql://${var.db_username}:${var.db_password}@${aws_db_instance.main.address}:5432/${var.db_name}?schema=public"
+          name      = "DATABASE_URL"
+          valueFrom = aws_secretsmanager_secret.database_url.arn
         }
       ]
 
@@ -82,7 +89,8 @@ resource "aws_ecs_task_definition" "api" {
   ])
 
   depends_on = [
-    aws_iam_role_policy_attachment.ecs_execution
+    aws_iam_role_policy_attachment.ecs_execution,
+    aws_iam_role_policy.ecs_read_database_secret
   ]
 }
 
