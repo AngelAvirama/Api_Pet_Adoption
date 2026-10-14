@@ -90,7 +90,8 @@ resource "aws_ecs_task_definition" "api" {
 
   depends_on = [
     aws_iam_role_policy_attachment.ecs_execution,
-    aws_iam_role_policy.ecs_read_database_secret
+    aws_iam_role_policy.ecs_read_database_secret,
+    aws_secretsmanager_secret_version.database_url
   ]
 }
 
