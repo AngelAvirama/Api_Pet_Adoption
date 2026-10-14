@@ -99,7 +99,7 @@ resource "aws_ecs_service" "api" {
   name            = "${var.project_name}-${var.environment}-api"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.api.arn
-  desired_count   = 1
+  desired_count   = var.api_desired_count
   launch_type     = "FARGATE"
   load_balancer {
     target_group_arn = aws_lb_target_group.api.arn

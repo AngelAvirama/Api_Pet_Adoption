@@ -46,3 +46,9 @@ variable "image_tag" {
   type        = string
   default     = "initial"
 }
+
+variable "api_desired_count" {
+  description = "Number of API tasks to run"
+  type        = number
+  default     = 0
+}
