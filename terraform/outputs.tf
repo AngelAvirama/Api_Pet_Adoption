@@ -13,3 +13,8 @@ output "environment" {
   description = "Deployment environment"
   value       = var.environment
 }
+
+output "ecr_repository_url" {
+  description = "URL of the API container repository"
+  value       = aws_ecr_repository.api.repository_url
+}
