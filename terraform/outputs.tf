@@ -33,3 +33,23 @@ output "db_name" {
   description = "PostgreSQL database name"
   value       = aws_db_instance.main.db_name
 }
+
+output "ecs_cluster_name" {
+  description = "Name of the ECS cluster"
+  value       = aws_ecs_cluster.main.name
+}
+
+output "api_task_definition_arn" {
+  description = "ARN of the API task definition"
+  value       = aws_ecs_task_definition.api.arn
+}
+
+output "public_subnet_ids" {
+  description = "Public subnet IDs for ECS tasks"
+  value       = aws_subnet.public[*].id
+}
+
+output "ecs_security_group_id" {
+  description = "Security group ID assigned to ECS tasks"
+  value       = aws_security_group.ecs.id
+}
