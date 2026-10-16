@@ -157,6 +157,60 @@ jobs:
           fi
 
           echo "Migraciones de Prisma completadas correctamente."
+      
+      - name: Seed database
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CLUSTER=$(terraform -chdir=terraform output -raw ecs_cluster_name)
+          TASK_DEFINITION=$(terraform -chdir=terraform output -raw api_task_definition_arn)
+          SECURITY_GROUP=$(terraform -chdir=terraform output -raw ecs_security_group_id)
+
+          SUBNETS=$(terraform -chdir=terraform output -json public_subnet_ids \
+            | jq -r 'join(",")')
+
+          NETWORK_CONFIGURATION="awsvpcConfiguration={subnets=[${SUBNETS}],securityGroups=[${SECURITY_GROUP}],assignPublicIp=ENABLED}"
+
+          echo "Iniciando semilla de datos..."
+
+          TASK_RESULT=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$TASK_DEFINITION" \
+            --launch-type FARGATE \
+            --network-configuration "$NETWORK_CONFIGURATION" \
+            --overrides '{"containerOverrides":[{"name":"api","command":["node","prisma/seed.js"]}]}' \
+            --output json)
+
+          echo "$TASK_RESULT" | jq '{failures, tasks: [.tasks[]? | {taskArn, lastStatus}]}'
+
+          TASK_ARN=$(echo "$TASK_RESULT" | jq -r '.tasks[0].taskArn // empty')
+
+          if [ -z "$TASK_ARN" ]; then
+            echo "No se pudo iniciar la tarea de semilla."
+            exit 1
+          fi
+
+          echo "Esperando a que termine la semilla..."
+          aws ecs wait tasks-stopped \
+            --cluster "$CLUSTER" \
+            --tasks "$TASK_ARN"
+
+          TASK_DETAILS=$(aws ecs describe-tasks \
+            --cluster "$CLUSTER" \
+            --tasks "$TASK_ARN")
+
+          echo "$TASK_DETAILS" | jq '.tasks[0] | {lastStatus, stoppedReason, containers}'
+
+          EXIT_CODE=$(echo "$TASK_DETAILS" \
+            | jq -r '[.tasks[0].containers[] | select(.name == "api")][0].exitCode // empty')
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "La semilla falló. Código de salida: ${EXIT_CODE:-desconocido}"
+            exit 1
+          fi
+
+          echo "Semilla completada correctamente."
 
       - name: Start API service
         env:

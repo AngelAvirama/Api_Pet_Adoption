@@ -70,6 +70,44 @@ async function main() {
     }
   }
 
+  // Crear una adopcion de ejemplo sin duplicarla
+  const adoptante = await prisma.adoptante.findUnique({
+    where: { documento: '100000001' },
+  });
+
+  const animal = await prisma.animal.findFirst({
+    where: {
+      nombre: 'Max',
+      especie: 'Perro',
+      raza: 'Labrador',
+    },
+  });
+
+  if (!adoptante || !animal) {
+    throw new Error('No se encontro el adoptante o el animal para la adopcion de ejemplo.');
+  }
+
+  const adopcionExistente = await prisma.adopcion.findFirst({
+    where: {
+      adoptanteId: adoptante.id,
+      animalId: animal.id,
+    },
+  });
+
+  if (!adopcionExistente) {
+    await prisma.adopcion.create({
+      data: {
+        adoptanteId: adoptante.id,
+        animalId: animal.id,
+        estado: 'COMPLETADA',
+      },
+    });
+
+    console.log('Adopcion de ejemplo creada: Carlos -> Max.');
+  } else {
+    console.log('La adopcion de ejemplo ya existe.');
+  }
+
   const [totalAnimales, totalAdoptantes, totalAdopciones] =
     await Promise.all([
       prisma.animal.count(),
