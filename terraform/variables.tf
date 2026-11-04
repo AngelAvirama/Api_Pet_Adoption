@@ -41,14 +41,37 @@ variable "db_password" {
   sensitive   = true
 }
 
-variable "image_tag" {
-  description = "Immutable tag of the API image in ECR"
+variable "stable_image_tag" {
+  description = "Immutable image tag for the stable API"
   type        = string
-  default     = "initial"
+  default     = "v3.0.0"
 }
 
-variable "api_desired_count" {
-  description = "Number of API tasks to run"
+variable "canary_image_tag" {
+  description = "Immutable image tag for the canary API"
+  type        = string
+  default     = "v4.0.0"
+}
+
+variable "stable_desired_count" {
+  description = "Number of stable API tasks"
+  type        = number
+  default     = 1
+}
+
+variable "canary_desired_count" {
+  description = "Number of canary API tasks"
+  type        = number
+  default     = 1
+}
+
+variable "canary_traffic_weight" {
+  description = "Percentage weight assigned to canary traffic"
   type        = number
   default     = 0
+
+  validation {
+    condition     = var.canary_traffic_weight >= 0 && var.canary_traffic_weight <= 100
+    error_message = "Canary traffic weight must be between 0 and 100."
+  }
 }

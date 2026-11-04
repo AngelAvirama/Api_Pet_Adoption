@@ -47,7 +47,7 @@ resource "aws_ecs_task_definition" "api" {
   container_definitions = jsonencode([
     {
       name      = "api"
-      image     = "${aws_ecr_repository.api.repository_url}:${var.image_tag}"
+      image     = "${aws_ecr_repository.api.repository_url}:${var.stable_image_tag}"
       essential = true
 
       portMappings = [{
@@ -99,7 +99,7 @@ resource "aws_ecs_service" "api" {
   name            = "${var.project_name}-${var.environment}-api"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.api.arn
-  desired_count   = var.api_desired_count
+  desired_count   = var.stable_desired_count
   launch_type     = "FARGATE"
   load_balancer {
     target_group_arn = aws_lb_target_group.api.arn
