@@ -5,7 +5,7 @@ const adoptanteRoutes = require('./routes/adoptante.routes');
 const adopcionRoutes = require('./routes/adopcion.routes');
 const errorHandler = require('./middlewares/error.middleware');
 const traceIdMiddleware = require('./middlewares/traceId.middleware');
-const v2Routes = require('./v2/routes');
+const v3Routes = require('./v3/routes');
 const metricsMiddleware = require('./middlewares/metrics.middleware');
 const { register } = require('./config/metrics');
 
@@ -36,7 +36,7 @@ app.use('/api/animals', animalRoutes);
 app.use('/api/adoptantes', adoptanteRoutes);
 app.use('/api/adopciones', adopcionRoutes);
 
-app.use('/api/v2', v2Routes);
+app.use('/api/v3', v3Routes);
 
 app.use(errorHandler);
 

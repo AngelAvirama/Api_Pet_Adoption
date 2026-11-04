@@ -9,7 +9,7 @@ const router = express.Router();
 router.get('/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
-    version: 'v2',
+    version: 'v3',
     traceId: req.traceId
   });
 });

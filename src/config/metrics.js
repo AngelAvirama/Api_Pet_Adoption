@@ -1,5 +1,5 @@
 const client = require('prom-client');
-const { getCacheMetrics } = require('../v2/services/external.service');
+const { getCacheMetrics } = require('../v3/services/external.service');
 
 const register = new client.Registry();
 
