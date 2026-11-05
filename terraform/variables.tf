@@ -56,13 +56,13 @@ variable "canary_image_tag" {
 variable "stable_desired_count" {
   description = "Number of stable API tasks"
   type        = number
-  default     = 1
+  default     = 0
 }
 
 variable "canary_desired_count" {
   description = "Number of canary API tasks"
   type        = number
-  default     = 1
+  default     = 0
 }
 
 variable "canary_traffic_weight" {
@@ -74,4 +74,10 @@ variable "canary_traffic_weight" {
     condition     = var.canary_traffic_weight >= 0 && var.canary_traffic_weight <= 100
     error_message = "Canary traffic weight must be between 0 and 100."
   }
+}
+
+variable "canary_allowed_cidr" {
+  description = "Public IP allowed to access the internal canary route"
+  type        = string
+  default     = "127.0.0.1/32"
 }

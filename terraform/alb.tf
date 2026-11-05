@@ -93,6 +93,12 @@ resource "aws_lb_listener_rule" "canary_internal" {
     }
   }
 
+  condition {
+    source_ip {
+      values = [var.canary_allowed_cidr]
+    }
+  }
+
   action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.canary.arn
