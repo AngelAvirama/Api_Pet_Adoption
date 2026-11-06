@@ -1,0 +1,163 @@
+
+name: Canary - Controlled Promotion
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "Porcentaje de trafico publico hacia Canary"
+        required: true
+        type: choice
+        options:
+          - "5"
+          - "25"
+          - "50"
+          - "100"
+        default: "5"
+
+      mode:
+        description: "Modo de ejecucion"
+        required: true
+        type: choice
+        options:
+          - simulate
+          - apply
+        default: simulate
+
+      confirmation:
+        description: "Escribe PROMOVER para autorizar cambios reales en AWS"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: canary-deployment-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  canary-promotion:
+    name: Canary stage ${{ inputs.stage }}%
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate execution mode
+        shell: bash
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          if [[ "$MODE" == "apply" && "$CONFIRMATION" != "PROMOVER" ]]; then
+            echo "::error::Para aplicar cambios reales debes escribir PROMOVER."
+            exit 1
+          fi
+
+          if [[ "$MODE" != "simulate" && "$MODE" != "apply" ]]; then
+            echo "::error::Modo de ejecucion no valido."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::296121913016:role/github-actions-pet-adoption-canary
+          aws-region: us-east-1
+          role-session-name: GitHubCanaryPromotion
+
+      - name: Verify AWS identity
+        shell: bash
+        run: aws sts get-caller-identity
+
+      - name: Verify ALB listener and current traffic
+        shell: bash
+        run: |
+          aws elbv2 describe-listeners \
+            --listener-arns arn:aws:elasticloadbalancing:us-east-1:296121913016:listener/app/pet-adoption-demo-alb/ff18874a789d24ca/e6325fd883476309 \
+            --region us-east-1 \
+            --query 'Listeners[0].DefaultActions[?Type==`forward`].ForwardConfig.TargetGroups[*].[TargetGroupArn,Weight]' \
+            --output table
+
+      - name: Validate PowerShell scripts
+        shell: pwsh
+        run: |
+          $files = @(
+            "./scripts/canary-promote.ps1",
+            "./scripts/canary-quality-gate.ps1",
+            "./scripts/canary-concurrent-test.ps1",
+            "./scripts/canary-rollback.ps1"
+          )
+
+          foreach ($file in $files) {
+            if (!(Test-Path $file)) {
+              throw "No se encontro el archivo: $file"
+            }
+
+            $tokens = $null
+            $errors = $null
+
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $file).Path,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+
+            if ($errors.Count -gt 0) {
+              $errors | Format-List
+              throw "Error de sintaxis en $file"
+            }
+
+            Write-Host "OK: $file"
+          }
+
+      - name: Execute selected Canary stage
+        shell: pwsh
+        env:
+          CANARY_STAGE: ${{ inputs.stage }}
+          DEPLOY_MODE: ${{ inputs.mode }}
+        run: |
+          $arguments = @(
+            "-Stages",
+            [int]$env:CANARY_STAGE,
+            "-AllowPartialStages",
+            "-BakeMinutes", "5",
+            "-CloudWatchDelaySeconds", "120",
+            "-ConcurrentRequests", "1000",
+            "-ConcurrentWorkers", "20",
+            "-WindowMinutes", "5",
+            "-MinRequests", "20",
+            "-Max5xxRate", "1.0",
+            "-MaxP95Seconds", "1.0"
+          )
+
+          if ($env:DEPLOY_MODE -eq "apply") {
+            $arguments += @(
+              "-Apply",
+              "-NonInteractive",
+              "-ConfirmPromotion"
+            )
+          }
+
+          Write-Host "Etapa seleccionada: $env:CANARY_STAGE %"
+          Write-Host "Modo: $env:DEPLOY_MODE"
+
+          & pwsh -NoLogo -NoProfile -File "./scripts/canary-promote.ps1" @arguments
+
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Upload Canary test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canary-stage-${{ inputs.stage }}-${{ github.run_id }}
+          path: scripts/canary-concurrent-*.csv
+          if-no-files-found: warn
+          retention-days: 30
