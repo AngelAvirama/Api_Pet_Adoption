@@ -161,6 +161,10 @@ resource "aws_ecs_task_definition" "canary" {
         {
           name  = "CLOUDWATCH_EMF_ENABLED"
           value = "true"
+        },
+        {
+          name  = "CANARY_FAULT_INJECTION_ENABLED"
+          value = "true"
         }
       ]
 

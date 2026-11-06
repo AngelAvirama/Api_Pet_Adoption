@@ -76,6 +76,39 @@ const getAnimalComposition = async (req, res, next) => {
 
 const getAnimalRecommendations = async (req, res, next) => {
   try {
+    // Controlled fault injection: Canary only
+    const faultInjectionEnabled =
+      process.env.CANARY_FAULT_INJECTION_ENABLED === 'true';
+
+    if (faultInjectionEnabled && req.appTrack === 'canary') {
+      const fault = req.query.fault;
+
+      console.log('[CANARY FAULT DEBUG]', {
+        enabled: faultInjectionEnabled,
+        appTrack: req.appTrack,
+        fault,
+        envValue: process.env.CANARY_FAULT_INJECTION_ENABLED
+      });
+
+      if (fault === '500') {
+        return res.status(500).json({
+          error: 'Simulated Canary failure',
+          version: 'v4',
+          track: 'canary',
+          traceId: req.traceId
+        });
+      }
+
+      if (fault === 'latency') {
+        const delayMs = Math.min(
+          Math.max(Number(req.query.delayMs) || 600, 100),
+          5000
+        );
+
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+
     const { especie, sexo, edadMaxima } = req.query;
 
     if (especie !== undefined &&
@@ -147,7 +180,7 @@ const getAnimalRecommendations = async (req, res, next) => {
       appTrack: metricLabels.app_track,
       recommendedCount: recommendations.length
     });
-    
+
     res.status(200).json({
       version: 'v4',
       track: 'canary',
