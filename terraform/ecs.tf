@@ -67,6 +67,14 @@ resource "aws_ecs_task_definition" "api" {
         {
           name  = "REDIS_ENABLED"
           value = "false"
+        },
+        {
+          name  = "APP_VERSION"
+          value = "v3"
+        },
+        {
+          name  = "APP_TRACK"
+          value = "stable"
         }
       ]
 
