@@ -23,12 +23,16 @@ const recordHttpRequest = ({
   method,
   route,
   statusCode,
-  durationMs
+  durationMs,
+  appVersion,
+  appTrack
 }) => {
   const attributes = {
     'http.method': method,
     'http.route': route,
-    'http.status_code': statusCode
+    'http.status_code': statusCode,
+    'app.version': appVersion || 'unknown',
+    'app.track': appTrack || 'unknown'
   };
 
   httpRequests.add(1, attributes);
