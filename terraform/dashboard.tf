@@ -101,6 +101,27 @@ resource "aws_cloudwatch_dashboard" "canary" {
         type   = "metric"
         x      = 0
         y      = 14
+        width  = 12
+        height = 6
+
+        properties = {
+          title   = "Errores HTTP 4xx - Stable vs Canary"
+          view    = "timeSeries"
+          stacked = false
+          region  = "us-east-1"
+          period  = 60
+          stat    = "Sum"
+
+          metrics = [
+            ["AWS/ApplicationELB", "HTTPCode_Target_4XX_Count", "LoadBalancer", aws_lb.api.arn_suffix, "TargetGroup", aws_lb_target_group.api.arn_suffix, { label = "Stable 4xx" }],
+            [".", "HTTPCode_Target_4XX_Count", ".", ".", "TargetGroup", aws_lb_target_group.canary.arn_suffix, { label = "Canary 4xx" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 20
         width  = 24
         height = 6
 
