@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 
 # Simulador de AWS CLI para pruebas Canary.
