@@ -4,6 +4,7 @@ resource "aws_cloudwatch_dashboard" "canary" {
 
   dashboard_body = jsonencode({
     widgets = [
+      # Encabezado
       {
         type   = "text"
         x      = 0
@@ -15,6 +16,8 @@ resource "aws_cloudwatch_dashboard" "canary" {
           markdown = "# Canary Deployment Dashboard\nComparación de métricas entre Stable y Canary"
         }
       },
+
+      # CPU - Stable vs Canary
       {
         type   = "metric"
         x      = 0
@@ -35,6 +38,8 @@ resource "aws_cloudwatch_dashboard" "canary" {
           ]
         }
       },
+
+      # Memoria - Stable vs Canary
       {
         type   = "metric"
         x      = 12
@@ -55,6 +60,8 @@ resource "aws_cloudwatch_dashboard" "canary" {
           ]
         }
       },
+
+      # Solicitudes - Stable vs Canary
       {
         type   = "metric"
         x      = 0
@@ -76,6 +83,8 @@ resource "aws_cloudwatch_dashboard" "canary" {
           ]
         }
       },
+
+      # Errores HTTP 5xx
       {
         type   = "metric"
         x      = 12
@@ -97,6 +106,8 @@ resource "aws_cloudwatch_dashboard" "canary" {
           ]
         }
       },
+
+      # Errores HTTP 4xx
       {
         type   = "metric"
         x      = 0
@@ -118,6 +129,8 @@ resource "aws_cloudwatch_dashboard" "canary" {
           ]
         }
       },
+
+      # Latencia p50, p95 y p99
       {
         type   = "metric"
         x      = 0
@@ -139,6 +152,68 @@ resource "aws_cloudwatch_dashboard" "canary" {
             [".", "TargetResponseTime", ".", ".", "TargetGroup", aws_lb_target_group.canary.arn_suffix, { id = "m4", label = "Canary p50", stat = "p50" }],
             [".", "TargetResponseTime", ".", ".", "TargetGroup", aws_lb_target_group.canary.arn_suffix, { id = "m5", label = "Canary p95", stat = "p95" }],
             [".", "TargetResponseTime", ".", ".", "TargetGroup", aws_lb_target_group.canary.arn_suffix, { id = "m6", label = "Canary p99", stat = "p99" }]
+          ]
+        }
+      },
+
+      # Solicitudes de recomendaciones Canary
+      {
+        type   = "metric"
+        x      = 0
+        y      = 26
+        width  = 12
+        height = 6
+
+        properties = {
+          title   = "Solicitudes de recomendaciones - Canary"
+          view    = "timeSeries"
+          stacked = false
+          region  = "us-east-1"
+          period  = 60
+          stat    = "Sum"
+
+          metrics = [
+            [
+              "PetAdoption/Canary",
+              "AnimalRecommendationRequests",
+              "AppVersion", "v4",
+              "AppTrack", "canary",
+              {
+                label = "Solicitudes Canary v4"
+                stat  = "Sum"
+              }
+            ]
+          ]
+        }
+      },
+
+      # Animales recomendados Canary
+      {
+        type   = "metric"
+        x      = 12
+        y      = 26
+        width  = 12
+        height = 6
+
+        properties = {
+          title   = "Animales recomendados - Canary"
+          view    = "timeSeries"
+          stacked = false
+          region  = "us-east-1"
+          period  = 60
+          stat    = "Sum"
+
+          metrics = [
+            [
+              "PetAdoption/Canary",
+              "AnimalsRecommended",
+              "AppVersion", "v4",
+              "AppTrack", "canary",
+              {
+                label = "Animales recomendados Canary v4"
+                stat  = "Sum"
+              }
+            ]
           ]
         }
       }

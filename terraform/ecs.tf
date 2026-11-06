@@ -80,10 +80,6 @@ resource "aws_ecs_task_definition" "api" {
         {
           name  = "APP_TRACK"
           value = "stable"
-        },
-        {
-          name  = "CLOUDWATCH_EMF_ENABLED"
-          value = "true"
         }
       ]
 
