@@ -80,6 +80,10 @@ resource "aws_ecs_task_definition" "api" {
         {
           name  = "APP_TRACK"
           value = "stable"
+        },
+        {
+          name  = "CLOUDWATCH_EMF_ENABLED"
+          value = "true"
         }
       ]
 
@@ -157,6 +161,10 @@ resource "aws_ecs_task_definition" "canary" {
         {
           name  = "APP_TRACK"
           value = "canary"
+        },
+        {
+          name  = "CLOUDWATCH_EMF_ENABLED"
+          value = "true"
         }
       ]
 
