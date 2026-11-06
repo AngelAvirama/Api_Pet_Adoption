@@ -1,6 +1,6 @@
 ﻿param(
     [int[]]$Stages = @(5, 25, 50, 100),
-    [int]$BakeMinutes = 5,
+    [int]$BakeMinutes = 2,
     [int]$CloudWatchDelaySeconds = 120,
     [int]$ConcurrentRequests = 1000,
     [int]$ConcurrentWorkers = 20,
