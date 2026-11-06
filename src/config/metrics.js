@@ -38,6 +38,20 @@ const httpErrorsTotal = new client.Counter({
   registers: [register]
 });
 
+const animalRecommendationRequestsTotal = new client.Counter({
+  name: 'animal_recommendation_requests_total',
+  help: 'Total number of successful animal recommendation requests',
+  labelNames: ['app_version', 'app_track'],
+  registers: [register]
+});
+
+const animalsRecommendedTotal = new client.Counter({
+  name: 'animals_recommended_total',
+  help: 'Total number of animals returned by recommendation requests',
+  labelNames: ['app_version', 'app_track'],
+  registers: [register]
+});
+
 const cacheHitsTotal = new client.Gauge({
   name: 'cache_hits_total',
   help: 'Total number of cache hits',
@@ -66,5 +80,7 @@ module.exports = {
   httpRequestDuration,
   httpErrorsTotal,
   cacheHitsTotal,
-  cacheMissesTotal
+  cacheMissesTotal,
+  animalRecommendationRequestsTotal,
+  animalsRecommendedTotal
 };

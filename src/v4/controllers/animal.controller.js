@@ -4,6 +4,10 @@ const {
   getRandomVuelo,
   getRandomImagen
 } = require('../services/external.service');
+const {
+  animalRecommendationRequestsTotal,
+  animalsRecommendedTotal
+} = require('../../config/metrics');
 
 const getAnimals = async (req, res, next) => {
   try {
@@ -126,6 +130,14 @@ const getAnimalRecommendations = async (req, res, next) => {
         matchesSex &&
         matchesAge;
     });
+
+    const metricLabels = {
+      app_version: req.appVersion || 'unknown',
+      app_track: req.appTrack || 'unknown'
+    };
+
+    animalRecommendationRequestsTotal.inc(metricLabels);
+    animalsRecommendedTotal.inc(metricLabels, recommendations.length);
 
     res.status(200).json({
       version: 'v4',
