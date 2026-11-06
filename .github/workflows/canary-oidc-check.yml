@@ -1,0 +1,38 @@
+
+name: Canary - OIDC Authentication Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  verify-aws-access:
+    name: Verify AWS OIDC access
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::296121913016:role/github-actions-pet-adoption-canary
+          aws-region: us-east-1
+          role-session-name: GitHubCanaryOIDCCheck
+
+      - name: Verify AWS identity
+        shell: bash
+        run: aws sts get-caller-identity
+
+      - name: Verify ALB listener access
+        shell: bash
+        run: |
+          aws elbv2 describe-listeners \
+            --listener-arns arn:aws:elasticloadbalancing:us-east-1:296121913016:listener/app/pet-adoption-demo-alb/ff18874a789d24ca/e6325fd883476309 \
+            --region us-east-1 \
+            --query 'Listeners[0].ListenerArn' \
+            --output text
