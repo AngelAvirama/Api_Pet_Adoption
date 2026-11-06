@@ -184,9 +184,7 @@ try {
 
     }
     elseif ($Stages[-1] -ne 100) {
-
-        throw "La ultima etapa debe ser 100. Usa AllowPartialStages solo para la prueba al 5%."
-
+        throw "La ultima etapa debe ser 100. Usa AllowPartialStages para ejecutar una etapa individual."
     }
 
     # ==========================================
@@ -208,7 +206,7 @@ try {
     Write-Host "Maximo p95: $MaxP95Seconds segundos"
 
     if ($AllowPartialStages) {
-        Write-Host "Modo: PRUEBA CONTROLADA 5%" -ForegroundColor Yellow
+        Write-Host "Modo: ETAPA CANARY INDIVIDUAL $($Stages[0])%" -ForegroundColor Yellow
     }
 
     $estimatedMinutes = (

@@ -312,3 +312,5 @@ if ($Success.Count -ne $Requests) {
 
 # Exit code 0 significa que el generador pudo completar y registrar la prueba.
 # Los errores HTTP quedan en el CSV para que los evalúe el Quality Gate.
+# Codigo de salida explicito para GitHub Actions.
+exit 0
