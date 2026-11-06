@@ -1,4 +1,4 @@
-
+﻿
 variable "aws_region" {
   description = "AWS region for the infrastructure"
   type        = string
@@ -44,13 +44,13 @@ variable "db_password" {
 variable "stable_image_tag" {
   description = "Immutable image tag for the stable API"
   type        = string
-  default     = "v3.0.0"
+  default     = "v3.0.1"
 }
 
 variable "canary_image_tag" {
   description = "Immutable image tag for the canary API"
   type        = string
-  default     = "v4.0.0"
+  default     = "v4.0.1"
 }
 
 variable "stable_desired_count" {
