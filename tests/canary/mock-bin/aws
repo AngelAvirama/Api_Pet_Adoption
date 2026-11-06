@@ -1,0 +1,83 @@
+
+#!/usr/bin/env bash
+
+# Simulador de AWS CLI para pruebas Canary.
+# Nunca realiza llamadas reales a AWS.
+
+ARGS=" $* "
+
+if [[ "$ARGS" == *"modify-listener"* ]]; then
+    echo "ERROR: modify-listener no esta permitido en las pruebas." >&2
+    exit 90
+fi
+
+if [[ "$ARGS" == *"describe-listeners"* ]]; then
+    cat <<'JSON'
+{
+  "Listeners": [{
+    "DefaultActions": [{
+      "Type": "forward",
+      "ForwardConfig": {
+        "TargetGroups": [
+          {
+            "TargetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:296121913016:targetgroup/pet-adoption-demo-tg/de0336b986a695b1",
+            "Weight": 100
+          },
+          {
+            "TargetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:296121913016:targetgroup/pet-adoption-demo-canary-tg/e5994e9fe2fd1dcf",
+            "Weight": 0
+          }
+        ]
+      }
+    }]
+  }]
+}
+JSON
+    exit 0
+fi
+
+if [[ "$ARGS" == *"describe-alarms"* ]]; then
+    STATE="OK"
+
+    if [[ "$CANARY_TEST_CASE" == "hold" ]]; then
+        STATE="OK"
+    fi
+
+    cat <<JSON
+[
+  {"Name":"pet-adoption-demo-ecs-canary-cpu-high","State":"$STATE"},
+  {"Name":"pet-adoption-demo-ecs-canary-memory-high","State":"$STATE"}
+]
+JSON
+    exit 0
+fi
+
+if [[ "$ARGS" == *"get-metric-statistics"* ]]; then
+
+    if [[ "$ARGS" == *"AnimalRecommendationRequests"* ]]; then
+        VALUE=100
+        [[ "$CANARY_TEST_CASE" == "hold" ]] && VALUE=2
+        printf '{"Datapoints":[{"Sum":%s}]}\n' "$VALUE"
+        exit 0
+    fi
+
+    if [[ "$ARGS" == *"HTTPCode_Target_4XX_Count"* ]]; then
+        echo '{"Datapoints":[{"Sum":0}]}'
+        exit 0
+    fi
+
+    if [[ "$ARGS" == *"HTTPCode_Target_5XX_Count"* ]]; then
+        VALUE=0
+        [[ "$CANARY_TEST_CASE" == "rollback" ]] && VALUE=5
+        printf '{"Datapoints":[{"Sum":%s}]}\n' "$VALUE"
+        exit 0
+    fi
+
+    if [[ "$ARGS" == *"TargetResponseTime"* ]]; then
+        echo '{"Datapoints":[{"ExtendedStatistics":{"p95":0.2}}]}'
+        exit 0
+    fi
+fi
+
+echo "Comando AWS no contemplado en el simulador: $*" >&2
+exit 91
