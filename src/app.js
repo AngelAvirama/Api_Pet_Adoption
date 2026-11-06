@@ -1,10 +1,11 @@
-const express = require('express');
+﻿const express = require('express');
 
 const animalRoutes = require('./routes/animal.routes');
 const adoptanteRoutes = require('./routes/adoptante.routes');
 const adopcionRoutes = require('./routes/adopcion.routes');
 const errorHandler = require('./middlewares/error.middleware');
 const traceIdMiddleware = require('./middlewares/traceId.middleware');
+const versionMiddleware = require('./middlewares/version.middleware');
 const v3Routes = require('./v3/routes');
 const v4Routes = require('./v4/routes');
 const metricsMiddleware = require('./middlewares/metrics.middleware');
@@ -13,6 +14,7 @@ const { register } = require('./config/metrics');
 const app = express();
 
 app.use(traceIdMiddleware);
+app.use(versionMiddleware);
 app.use(metricsMiddleware);
 app.use(express.json());
 
