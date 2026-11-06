@@ -1,3 +1,4 @@
+
 const animalService = require('../../services/animal.service');
 const {
   getRandomVuelo,
@@ -70,18 +71,60 @@ const getAnimalRecommendations = async (req, res, next) => {
   try {
     const { especie, sexo, edadMaxima } = req.query;
 
+    if (especie !== undefined &&
+        (typeof especie !== 'string' || !especie.trim())) {
+      return res.status(400).json({
+        error: 'especie must be a non-empty string',
+        traceId: req.traceId
+      });
+    }
+
+    if (sexo !== undefined &&
+        (typeof sexo !== 'string' || !sexo.trim())) {
+      return res.status(400).json({
+        error: 'sexo must be a non-empty string',
+        traceId: req.traceId
+      });
+    }
+
+    let maxAge;
+
+    if (edadMaxima !== undefined) {
+      if (
+        typeof edadMaxima !== 'string' ||
+        edadMaxima.trim() === '' ||
+        !/^\d+$/.test(edadMaxima)
+      ) {
+        return res.status(400).json({
+          error: 'edadMaxima must be a non-negative integer',
+          traceId: req.traceId
+        });
+      }
+
+      maxAge = Number(edadMaxima);
+    }
+
+    const normalizedSpecies = especie?.trim().toLowerCase();
+    const normalizedSex = sexo?.trim().toLowerCase();
+
     const animals = await animalService.getAll();
 
     const recommendations = animals.filter((animal) => {
       const isAvailable = animal.estado === 'DISPONIBLE';
-      const matchesSpecies = !especie ||
-        animal.especie.toLowerCase() === especie.toLowerCase();
-      const matchesSex = !sexo ||
-        animal.sexo.toLowerCase() === sexo.toLowerCase();
-      const matchesAge = !edadMaxima ||
-        animal.edad <= Number(edadMaxima);
 
-      return isAvailable && matchesSpecies && matchesSex && matchesAge;
+      const matchesSpecies = !normalizedSpecies ||
+        animal.especie.toLowerCase() === normalizedSpecies;
+
+      const matchesSex = !normalizedSex ||
+        animal.sexo.toLowerCase() === normalizedSex;
+
+      const matchesAge = maxAge === undefined ||
+        animal.edad <= maxAge;
+
+      return isAvailable &&
+        matchesSpecies &&
+        matchesSex &&
+        matchesAge;
     });
 
     res.status(200).json({
@@ -89,9 +132,9 @@ const getAnimalRecommendations = async (req, res, next) => {
       track: 'canary',
       count: recommendations.length,
       filters: {
-        especie: especie || null,
-        sexo: sexo || null,
-        edadMaxima: edadMaxima ? Number(edadMaxima) : null
+        especie: normalizedSpecies || null,
+        sexo: normalizedSex || null,
+        edadMaxima: maxAge ?? null
       },
       data: recommendations,
       traceId: req.traceId
