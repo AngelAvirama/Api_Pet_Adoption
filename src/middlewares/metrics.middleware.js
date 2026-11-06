@@ -20,7 +20,9 @@ const metricsMiddleware = (req, res, next) => {
     const labels = {
       method: req.method,
       route,
-      status_code: String(res.statusCode)
+      status_code: String(res.statusCode),
+      app_version: req.appVersion || process.env.APP_VERSION || 'unknown',
+      app_track: req.appTrack || process.env.APP_TRACK || 'unknown'
     };
 
     httpRequestsTotal.inc(labels);
@@ -34,7 +36,9 @@ const metricsMiddleware = (req, res, next) => {
       method: req.method,
       route,
       statusCode: res.statusCode,
-      durationMs: duration * 1000
+      durationMs: duration * 1000,
+      appVersion: labels.app_version,
+      appTrack: labels.app_track
     });
 
     logger.info('HTTP request completed', {
@@ -42,6 +46,8 @@ const metricsMiddleware = (req, res, next) => {
       method: req.method,
       route,
       statusCode: res.statusCode,
+      appVersion: labels.app_version,
+      appTrack: labels.app_track,
       durationMs: Number((duration * 1000).toFixed(2))
     });
   });
