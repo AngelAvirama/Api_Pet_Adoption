@@ -10,7 +10,7 @@ $ListenerArn = "arn:aws:elasticloadbalancing:us-east-1:296121913016:listener/app
 $StableTG = "arn:aws:elasticloadbalancing:us-east-1:296121913016:targetgroup/pet-adoption-demo-tg/de0336b986a695b1"
 $CanaryTG = "arn:aws:elasticloadbalancing:us-east-1:296121913016:targetgroup/pet-adoption-demo-canary-tg/e5994e9fe2fd1dcf"
 
-$tempJson = Join-Path $env:TEMP "canary-rollback-actions.json"
+$tempJson = Join-Path ([System.IO.Path]::GetTempPath()) "canary-rollback-actions.json"
 
 try {
     Write-Host "`n=== CANARY ROLLBACK ===" -ForegroundColor Cyan

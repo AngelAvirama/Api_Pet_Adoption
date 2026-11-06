@@ -28,7 +28,7 @@ $Gate = Join-Path $PSScriptRoot "canary-quality-gate.ps1"
 $Rollback = Join-Path $PSScriptRoot "canary-rollback.ps1"
 $ConcurrentTest = Join-Path $PSScriptRoot "canary-concurrent-test.ps1"
 
-$tempJson = Join-Path $env:TEMP "canary-promotion-actions.json"
+$tempJson = Join-Path ([System.IO.Path]::GetTempPath()) "canary-promotion-actions.json"
 
 $script:trafficChanged = $false
 $script:rollbackAttempted = $false
