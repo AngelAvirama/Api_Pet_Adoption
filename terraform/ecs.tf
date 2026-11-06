@@ -5,6 +5,11 @@ resource "aws_ecs_cluster" "main" {
   tags = {
     Name = "${var.project_name}-${var.environment}-cluster"
   }
+
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
+  }
 }
 
 resource "aws_iam_role" "ecs_execution" {
