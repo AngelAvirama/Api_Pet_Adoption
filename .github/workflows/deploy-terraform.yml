@@ -95,15 +95,15 @@ jobs:
       - name: Plan infrastructure
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-          TF_VAR_image_tag: ${{ github.sha }}-${{ github.run_attempt }}
-          TF_VAR_api_desired_count: "0"
+          TF_VAR_stable_image_tag: ${{ github.sha }}-${{ github.run_attempt }}
+          TF_VAR_stable_desired_count: "0"
         run: terraform -chdir=terraform plan -out=tfplan
 
       - name: Create infrastructure with API stopped
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-          TF_VAR_image_tag: ${{ github.sha }}-${{ github.run_attempt }}
-          TF_VAR_api_desired_count: "0"
+          TF_VAR_stable_image_tag: ${{ github.sha }}-${{ github.run_attempt }}
+          TF_VAR_stable_desired_count: "0"
         run: terraform -chdir=terraform apply -auto-approve tfplan
 
       - name: Run Prisma database migrations
@@ -215,8 +215,8 @@ jobs:
       - name: Start API service
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-          TF_VAR_image_tag: ${{ github.sha }}-${{ github.run_attempt }}
-          TF_VAR_api_desired_count: "1"
+          TF_VAR_stable_image_tag: ${{ github.sha }}-${{ github.run_attempt }}
+          TF_VAR_stable_desired_count: "1"
         run: terraform -chdir=terraform apply -auto-approve
 
       - name: Verify API health
