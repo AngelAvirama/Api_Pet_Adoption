@@ -1,0 +1,154 @@
+{
+  "version": "1.0.0",
+  "title": "Indisponibilidad de la base de datos de la API de adopcion (AWS ECS + RDS)",
+  "description": "Estado estable: con el perfil de carga P (10 usuarios virtuales en bucle cerrado durante 5 minutos, chaos/k6/adopcion.js), GET /api/v2/animals/random (la ruta que consume el coordinador en GKE) responde 200 en menos de 500 ms y la tasa de error es 0 %. Hipotesis falsable: dado el perfil de carga P, cuando la dependencia de base de datos de la API de adopcion falle de forma sostenida (100 % de las consultas del animal aleatorio con error P1001, como si RDS no respondiera) durante los 5 minutos de la carga, la API mantendra la tasa de error de GET /api/v2/animals/random por debajo del 5 %. Ronda 0 (RESILIENCE_ENABLED=false): se espera que la hipotesis se refute, porque cada consulta fallida termina en 500 y el error se propaga al coordinador. Ronda 1 (timeout de 1 s por consulta + circuit breaker + degradacion elegante con el ultimo animal conocido): se espera que se mantenga. Metodo de inyeccion: interruptor propio /internal/chaos (estado en SSM Parameter Store, protegido con X-Chaos-Token), aplicado solo en la consulta animal.findRandom. Radio de impacto: solo esa consulta en los tasks del servicio ECS pet-adoption-demo-api de la cuenta del grupo; RDS no se modifica, /api/health y el resto de rutas no se tocan, y las APIs de Leonardo (GCP) y Juan (OCI) no se tocan. Duracion: la carga (5 min) mas el TTL maximo del fallo (7 min), que es la reversion automatica si la ejecucion muere. Condiciones de aborto: k6 detiene la carga si /api/health (fuera del radio de impacto) falla en mas del 50 % de sus comprobaciones durante 60 s; Chaos Toolkit ejecuta los rollbacks siempre (--rollback-strategy=always). Plan de reversion automatica: DELETE /internal/chaos, verificacion de que no quedan fallos y de que el contrato vuelve a responder 200 en menos de 500 ms; como ultima red, el TTL del fallo. Metrica objetivo: tasa de error de GET /api/v2/animals/random medida por k6 (http_req_failed del escenario carga); ventana de observacion: los 5 minutos de la carga.",
+  "tags": ["pet-adoption", "indisponibilidad", "dependencia", "base-de-datos", "aws", "ecs"],
+  "contributions": {
+    "availability": "high",
+    "reliability": "high",
+    "security": "none"
+  },
+  "configuration": {
+    "base_url": { "type": "env", "key": "CHAOS_BASE_URL", "default": "http://localhost:3000" },
+    "ronda": { "type": "env", "key": "RONDA", "default": "0" },
+    "error_rate": { "type": "env", "key": "ERROR_RATE", "default": "1" },
+    "ttl_seconds": { "type": "env", "key": "TTL_SECONDS", "default": "420" },
+    "max_ms": { "type": "env", "key": "MAX_MS", "default": "500" },
+    "perfil": { "type": "env", "key": "PERFIL", "default": "completo" },
+    "results_dir": { "type": "env", "key": "RESULTS_DIR", "default": "chaos/results" }
+  },
+  "secrets": {
+    "caos": {
+      "token": { "type": "env", "key": "CHAOS_TOKEN" }
+    }
+  },
+  "steady-state-hypothesis": {
+    "title": "La API esta sana y el contrato del coordinador responde 200 en menos de ${max_ms} ms",
+    "probes": [
+      {
+        "type": "probe",
+        "name": "la-api-esta-sana",
+        "tolerance": 0,
+        "provider": {
+          "type": "process",
+          "path": "node",
+          "arguments": ["chaos/probes.js", "salud"],
+          "timeout": 30
+        }
+      },
+      {
+        "type": "probe",
+        "name": "el-contrato-responde-a-tiempo",
+        "tolerance": 0,
+        "provider": {
+          "type": "process",
+          "path": "node",
+          "arguments": ["chaos/probes.js", "contrato", "--max-ms", "${max_ms}"],
+          "timeout": 45
+        }
+      }
+    ]
+  },
+  "method": [
+    {
+      "type": "probe",
+      "name": "la-ronda-desplegada-es-la-esperada",
+      "tolerance": 0,
+      "provider": {
+        "type": "process",
+        "path": "node",
+        "arguments": ["chaos/probes.js", "ronda", "--esperada", "${ronda}"],
+        "timeout": 30
+      }
+    },
+    {
+      "type": "probe",
+      "name": "antes-no-hay-fallos-activos",
+      "tolerance": 0,
+      "secrets": ["caos"],
+      "provider": {
+        "type": "process",
+        "path": "node",
+        "arguments": ["chaos/probes.js", "sin-fallos"],
+        "timeout": 30
+      }
+    },
+    {
+      "type": "action",
+      "name": "inyectar-fallo-de-base-de-datos",
+      "secrets": ["caos"],
+      "provider": {
+        "type": "process",
+        "path": "node",
+        "arguments": ["chaos/probes.js", "activar", "--error", "${error_rate}", "--ttl", "${ttl_seconds}", "--motivo", "experimento indisponibilidad ronda ${ronda}"],
+        "timeout": 30
+      },
+      "pauses": { "after": 5 }
+    },
+    {
+      "type": "probe",
+      "name": "una-peticion-durante-el-fallo",
+      "provider": {
+        "type": "process",
+        "path": "node",
+        "arguments": ["chaos/probes.js", "contrato", "--max-ms", "60000"],
+        "timeout": 70
+      }
+    },
+    {
+      "type": "action",
+      "name": "carga-k6-con-el-perfil-declarado",
+      "provider": {
+        "type": "process",
+        "path": "k6",
+        "arguments": [
+          "run",
+          "--quiet",
+          "--env", "BASE_URL=${base_url}",
+          "--env", "RONDA=${ronda}",
+          "--env", "PERFIL=${perfil}",
+          "--env", "RESULTS_DIR=${results_dir}",
+          "chaos/k6/adopcion.js"
+        ],
+        "timeout": 600
+      }
+    }
+  ],
+  "rollbacks": [
+    {
+      "type": "action",
+      "name": "revertir-el-fallo",
+      "secrets": ["caos"],
+      "provider": {
+        "type": "process",
+        "path": "node",
+        "arguments": ["chaos/probes.js", "revertir"],
+        "timeout": 30
+      },
+      "pauses": { "after": 5 }
+    },
+    {
+      "type": "probe",
+      "name": "despues-no-quedan-fallos-activos",
+      "tolerance": 0,
+      "secrets": ["caos"],
+      "provider": {
+        "type": "process",
+        "path": "node",
+        "arguments": ["chaos/probes.js", "sin-fallos"],
+        "timeout": 30
+      }
+    },
+    {
+      "type": "probe",
+      "name": "el-sistema-volvio-al-estado-estable",
+      "tolerance": 0,
+      "provider": {
+        "type": "process",
+        "path": "node",
+        "arguments": ["chaos/probes.js", "contrato", "--max-ms", "${max_ms}"],
+        "timeout": 45
+      }
+    }
+  ]
+}
