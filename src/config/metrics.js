@@ -13,7 +13,8 @@ const httpLabels = [
   'route',
   'status_code',
   'app_version',
-  'app_track'
+  'app_track',
+  'round'
 ];
 
 const httpRequestsTotal = new client.Counter({

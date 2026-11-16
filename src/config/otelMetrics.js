@@ -39,6 +39,22 @@ chaosFaultActive.addCallback((result) => {
   });
 });
 
+const breakerStates = {};
+
+const circuitBreakerState = meter.createObservableGauge('circuit_breaker.state', {
+  description: 'Circuit breaker state: 0 closed, 1 half open, 2 open'
+});
+
+circuitBreakerState.addCallback((result) => {
+  Object.entries(breakerStates).forEach(([circuito, value]) => {
+    result.observe(value, { circuito });
+  });
+});
+
+const setCircuitBreakerState = (circuito, value) => {
+  breakerStates[circuito] = value;
+};
+
 const setChaosFaultState = (fault) => {
   chaosFaultState.latencia = fault && fault.latency_ms > 0 ? 1 : 0;
   chaosFaultState.error = fault && fault.error_rate > 0 ? 1 : 0;
@@ -58,14 +74,16 @@ const recordHttpRequest = ({
   statusCode,
   durationMs,
   appVersion,
-  appTrack
+  appTrack,
+  round
 }) => {
   const attributes = {
     'http.method': method,
     'http.route': route,
     'http.status_code': statusCode,
     'app.version': appVersion || 'unknown',
-    'app.track': appTrack || 'unknown'
+    'app.track': appTrack || 'unknown',
+    'app.round': round || 'unknown'
   };
 
   httpRequests.add(1, attributes);
@@ -87,6 +105,7 @@ const recordCacheMiss = (cacheName) => {
 module.exports = {
   recordHttpRequest,
   setChaosFaultState,
+  setCircuitBreakerState,
   recordChaosInjectedFailure,
   recordDegradedResponse,
   recordCacheHit,

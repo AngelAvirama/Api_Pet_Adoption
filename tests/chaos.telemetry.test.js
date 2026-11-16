@@ -27,3 +27,20 @@ describe('chaos telemetry', () => {
     expect(await valueOf('degraded_responses_total', { motivo: 'circuito_abierto' })).toBe(1);
   });
 });
+
+describe('round label on HTTP metrics', () => {
+  test('requests are labelled with the chaos round', async () => {
+    const request = require('supertest');
+    const express = require('express');
+    const metricsMiddleware = require('../src/middlewares/metrics.middleware');
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    const app = express();
+    app.use(metricsMiddleware);
+    app.get('/ronda', (req, res) => res.send('ok'));
+
+    await request(app).get('/ronda');
+
+    expect(await valueOf('http_requests_total', { route: '/ronda', round: '0' })).toBe(1);
+    jest.restoreAllMocks();
+  });
+});

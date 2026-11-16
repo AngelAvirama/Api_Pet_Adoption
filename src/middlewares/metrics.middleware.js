@@ -6,6 +6,7 @@ const {
 
 const { recordHttpRequest } = require('../config/otelMetrics');
 const logger = require('../config/logger');
+const { getRound } = require('../resilience/config');
 
 const metricsMiddleware = (req, res, next) => {
   const start = process.hrtime.bigint();
@@ -22,7 +23,8 @@ const metricsMiddleware = (req, res, next) => {
       route,
       status_code: String(res.statusCode),
       app_version: req.appVersion || process.env.APP_VERSION || 'unknown',
-      app_track: req.appTrack || process.env.APP_TRACK || 'unknown'
+      app_track: req.appTrack || process.env.APP_TRACK || 'unknown',
+      round: getRound()
     };
 
     httpRequestsTotal.inc(labels);
@@ -38,7 +40,8 @@ const metricsMiddleware = (req, res, next) => {
       statusCode: res.statusCode,
       durationMs: duration * 1000,
       appVersion: labels.app_version,
-      appTrack: labels.app_track
+      appTrack: labels.app_track,
+      round: labels.round
     });
 
     logger.info('HTTP request completed', {
@@ -48,6 +51,7 @@ const metricsMiddleware = (req, res, next) => {
       statusCode: res.statusCode,
       appVersion: labels.app_version,
       appTrack: labels.app_track,
+      round: labels.round,
       durationMs: Number((duration * 1000).toFixed(2))
     });
   });
