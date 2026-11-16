@@ -112,10 +112,12 @@ const createStoreFromEnv = (env = process.env) => {
 };
 
 // Per-task cache in front of the store, so the request path never waits for
-// SSM: requests read the last snapshot and a refresh runs in the background
-// when it is older than ttlMs. If the store cannot be read maxFailures times
-// in a row, the cache falls back to "no fault": a broken switch must never
-// leave a fault stuck on.
+// SSM: requests read the last snapshot. start() refreshes it every ttlMs in
+// the background, with or without traffic, so a task that received no
+// requests never serves a fault that was already removed in another task
+// (the snapshot is at most ttlMs old). If the store cannot be read
+// maxFailures times in a row, the cache falls back to "no fault": a broken
+// switch must never leave a fault stuck on.
 const createFaultCache = ({ store, ttlMs = 3000, maxFailures = 3, onChange, log } = {}) => {
   let snapshot = null;
   let fetchedAt = 0;
@@ -162,7 +164,27 @@ const createFaultCache = ({ store, ttlMs = 3000, maxFailures = 3, onChange, log 
     fetchedAt = 0;
   };
 
-  return { get, refresh, invalidate };
+  let timer = null;
+
+  const start = () => {
+    if (!timer && ttlMs > 0) {
+      timer = setInterval(() => {
+        if (!inflight) {
+          inflight = refresh().finally(() => {
+            inflight = null;
+          });
+        }
+      }, ttlMs);
+      timer.unref();
+    }
+  };
+
+  const stop = () => {
+    clearInterval(timer);
+    timer = null;
+  };
+
+  return { get, refresh, invalidate, start, stop };
 };
 
 module.exports = {

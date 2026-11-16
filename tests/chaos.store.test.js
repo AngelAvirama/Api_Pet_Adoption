@@ -118,4 +118,21 @@ describe('chaos fault store', () => {
     expect(await cache.get()).toBeNull();
     expect(log).toHaveBeenCalledWith('chaos_store_error', expect.objectContaining({ intentos: 2 }));
   });
+
+  test('background refresh drops a removed fault without any request', async () => {
+    const store = createMemoryStore();
+    await store.write(buildFault({ errorRate: 1, ttlSeconds: 60 }));
+    const onChange = jest.fn();
+    const cache = createFaultCache({ store, ttlMs: 10, onChange });
+
+    expect((await cache.get()).error_rate).toBe(1);
+    cache.start();
+    cache.start();
+    await store.clear();
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    expect(onChange).toHaveBeenLastCalledWith(null);
+    expect(await cache.get()).toBeNull();
+    cache.stop();
+  });
 });
