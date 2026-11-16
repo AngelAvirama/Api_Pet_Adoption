@@ -1,10 +1,14 @@
 const prisma = require('../config/database');
 const { cache } = require('../chaos');
 const { createDatabaseFaultInjector } = require('../chaos/inject');
+const { countInjectedFailure } = require('../chaos/telemetry');
 
 // Blast radius of the experiment: only this query (GET .../animals/random,
 // the one the coordinator consumes) passes through the chaos switch.
-const injectDatabaseFault = createDatabaseFaultInjector({ cache });
+const injectDatabaseFault = createDatabaseFaultInjector({
+  cache,
+  onInjected: countInjectedFailure
+});
 
 const findAll = () => {
   return prisma.animal.findMany();

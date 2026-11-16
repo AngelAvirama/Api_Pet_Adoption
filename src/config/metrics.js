@@ -74,8 +74,35 @@ const cacheMissesTotal = new client.Gauge({
   }
 });
 
+// Release 5: chaos engineering. chaos_fault_active marks the injection
+// window on the dashboard; the other two show what the fault and the
+// resilience patterns did during it.
+const chaosFaultActive = new client.Gauge({
+  name: 'chaos_fault_active',
+  help: '1 while the chaos switch has an active fault on the dependency',
+  labelNames: ['dependencia', 'tipo'],
+  registers: [register]
+});
+
+const chaosInjectedFailuresTotal = new client.Counter({
+  name: 'chaos_injected_failures_total',
+  help: 'Failures injected by the chaos switch',
+  labelNames: ['dependencia', 'operacion'],
+  registers: [register]
+});
+
+const degradedResponsesTotal = new client.Counter({
+  name: 'degraded_responses_total',
+  help: 'Responses served in degraded mode instead of failing',
+  labelNames: ['ruta', 'motivo'],
+  registers: [register]
+});
+
 module.exports = {
   register,
+  chaosFaultActive,
+  chaosInjectedFailuresTotal,
+  degradedResponsesTotal,
   httpRequestsTotal,
   httpRequestDuration,
   httpErrorsTotal,

@@ -19,6 +19,39 @@ const cacheMisses = meter.createCounter('cache.misses', {
   description: 'Total number of cache misses'
 });
 
+const chaosInjectedFailures = meter.createCounter('chaos.injected_failures', {
+  description: 'Failures injected by the chaos switch'
+});
+
+const degradedResponses = meter.createCounter('responses.degraded', {
+  description: 'Responses served in degraded mode instead of failing'
+});
+
+const chaosFaultState = { latencia: 0, error: 0 };
+
+const chaosFaultActive = meter.createObservableGauge('chaos.fault.active', {
+  description: '1 while the chaos switch has an active fault on the database'
+});
+
+chaosFaultActive.addCallback((result) => {
+  Object.entries(chaosFaultState).forEach(([tipo, value]) => {
+    result.observe(value, { dependencia: 'database', tipo });
+  });
+});
+
+const setChaosFaultState = (fault) => {
+  chaosFaultState.latencia = fault && fault.latency_ms > 0 ? 1 : 0;
+  chaosFaultState.error = fault && fault.error_rate > 0 ? 1 : 0;
+};
+
+const recordChaosInjectedFailure = (operacion) => {
+  chaosInjectedFailures.add(1, { dependencia: 'database', operacion });
+};
+
+const recordDegradedResponse = (ruta, motivo) => {
+  degradedResponses.add(1, { ruta, motivo });
+};
+
 const recordHttpRequest = ({
   method,
   route,
@@ -53,6 +86,9 @@ const recordCacheMiss = (cacheName) => {
 
 module.exports = {
   recordHttpRequest,
+  setChaosFaultState,
+  recordChaosInjectedFailure,
+  recordDegradedResponse,
   recordCacheHit,
   recordCacheMiss
 };
