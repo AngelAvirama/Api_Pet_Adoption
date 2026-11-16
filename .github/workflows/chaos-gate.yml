@@ -18,6 +18,11 @@ on:
         description: "Confirmo que estamos en la ventana acordada con el grupo y que la infraestructura es nuestra"
         type: boolean
         default: false
+      modo:
+        description: "experimento = inyecta el fallo y corre la puerta; estado-estable = solo la carga, sin fallo (linea base)"
+        type: choice
+        options: ["experimento", "estado-estable"]
+        default: "experimento"
       ronda:
         description: "Ronda a medir (debe coincidir con RESILIENCE_ENABLED desplegado: 0=false, 1=true)"
         type: choice
@@ -90,7 +95,15 @@ jobs:
             echo "::error::La API esta desplegada en otra ronda (ver X-Ronda). Despliegue con resilience_enabled correcto."; exit 1; }
           node chaos/probes.js sin-fallos
 
+      - name: Medir el estado estable (sin fallo)
+        if: ${{ inputs.modo == 'estado-estable' }}
+        run: |
+          mkdir -p "$RESULTS_DIR"
+          k6 run --env BASE_URL="$CHAOS_BASE_URL" --env RONDA="estable-r$RONDA" \
+            --env PERFIL="$PERFIL" --env RESULTS_DIR="$RESULTS_DIR" chaos/k6/adopcion.js
+
       - name: Ejecutar el experimento de caos
+        if: ${{ inputs.modo == 'experimento' }}
         env:
           CHAOS_TOKEN: ${{ secrets.CHAOS_TOKEN }}
         run: |
@@ -111,7 +124,7 @@ jobs:
           node chaos/probes.js sin-fallos
 
       - name: Puerta de calidad
-        if: always()
+        if: ${{ always() && inputs.modo == 'experimento' }}
         run: |
           node chaos/gate.js --ronda "$RONDA" --out "$RESULTS_DIR/gate-ronda-$RONDA.json"
 
@@ -119,7 +132,7 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Chaos gate ronda $RONDA ($PERFIL)"
+            echo "## Chaos gate ${{ inputs.modo }} ronda $RONDA ($PERFIL)"
             echo '```json'
             cat "$RESULTS_DIR/gate-ronda-$RONDA.json" 2>/dev/null || echo "sin veredicto"
             echo '```'
@@ -129,6 +142,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: chaos-ronda-${{ inputs.ronda }}-${{ github.run_number }}
+          name: chaos-${{ inputs.modo }}-ronda-${{ inputs.ronda }}-${{ github.run_number }}
           path: chaos/results/*.json
           if-no-files-found: warn
