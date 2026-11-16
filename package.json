@@ -1,7 +1,7 @@
 {
   "name": "api_pet_adoption",
-  "version": "1.0.0",
-  "description": "",
+  "version": "5.0.0",
+  "description": "Pet Adoption API (AWS) - release 5: Chaos Engineering",
   "main": "index.js",
   "scripts": {
     "start": "node --require ./src/instrumentation.js src/server.js",

@@ -1,5 +1,5 @@
-﻿const versionMiddleware = (req, res, next) => {
-  const version = process.env.APP_VERSION || 'v3';
+const versionMiddleware = (req, res, next) => {
+  const version = process.env.APP_VERSION || 'v5';
   const track = process.env.APP_TRACK || 'stable';
 
   // Identificar la versión y el track en la solicitud
