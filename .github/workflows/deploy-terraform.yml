@@ -103,6 +103,15 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Tags are immutable in ECR: a new run of the same commit reuses the
+          # image already pushed instead of failing on the push.
+          if aws ecr describe-images \
+            --repository-name pet-adoption-api \
+            --image-ids imageTag="${IMAGE_TAG}" >/dev/null 2>&1; then
+            echo "La imagen ${IMAGE_TAG} ya existe en ECR; se reutiliza."
+            exit 0
+          fi
+
           docker build --tag "${REPOSITORY_URL}:${IMAGE_TAG}" .
           docker push "${REPOSITORY_URL}:${IMAGE_TAG}"
 
