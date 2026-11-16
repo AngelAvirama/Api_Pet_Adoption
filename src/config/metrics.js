@@ -98,8 +98,16 @@ const degradedResponsesTotal = new client.Counter({
   registers: [register]
 });
 
+const circuitBreakerState = new client.Gauge({
+  name: 'circuit_breaker_state',
+  help: 'Circuit breaker state: 0 closed, 1 half open, 2 open',
+  labelNames: ['circuito'],
+  registers: [register]
+});
+
 module.exports = {
   register,
+  circuitBreakerState,
   chaosFaultActive,
   chaosInjectedFailuresTotal,
   degradedResponsesTotal,
