@@ -1,4 +1,4 @@
-﻿
+
 variable "aws_region" {
   description = "AWS region for the infrastructure"
   type        = string
@@ -80,4 +80,42 @@ variable "canary_allowed_cidr" {
   description = "Public IP allowed to access the internal canary route"
   type        = string
   default     = "127.0.0.1/32"
+}
+
+# Release 5: Chaos Engineering
+
+variable "resilience_enabled" {
+  description = "Round of the experiment: false = round 0 (no protections), true = round 1"
+  type        = bool
+  default     = false
+}
+
+variable "chaos_enabled" {
+  description = "Expose the chaos switch (/internal/chaos) in the API"
+  type        = bool
+  default     = true
+}
+
+variable "chaos_token" {
+  description = "Token of the chaos switch (min 16 characters)"
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = length(var.chaos_token) >= 16
+    error_message = "chaos_token must have at least 16 characters."
+  }
+}
+
+variable "otel_exporter_endpoint" {
+  description = "OTLP endpoint of Grafana Cloud"
+  type        = string
+  default     = "https://otlp-gateway-prod-us-east-3.grafana.net/otlp"
+}
+
+variable "otel_exporter_headers" {
+  description = "OTLP headers for Grafana Cloud, e.g. Authorization=Basic <base64 instance:token>"
+  type        = string
+  sensitive   = true
+  default     = "none"
 }

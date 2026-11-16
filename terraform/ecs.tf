@@ -48,6 +48,7 @@ resource "aws_ecs_task_definition" "api" {
   cpu                      = "256"
   memory                   = "512"
   execution_role_arn       = aws_iam_role.ecs_execution.arn
+  task_role_arn            = aws_iam_role.ecs_task.arn
 
   container_definitions = jsonencode([
     {
@@ -75,11 +76,47 @@ resource "aws_ecs_task_definition" "api" {
         },
         {
           name  = "APP_VERSION"
-          value = "v3"
+          value = "v5"
         },
         {
           name  = "APP_TRACK"
           value = "stable"
+        },
+        {
+          name  = "AWS_REGION"
+          value = var.aws_region
+        },
+        {
+          name  = "RESILIENCE_ENABLED"
+          value = tostring(var.resilience_enabled)
+        },
+        {
+          name  = "CHAOS_ENABLED"
+          value = tostring(var.chaos_enabled)
+        },
+        {
+          name  = "CHAOS_STATE_BACKEND"
+          value = "ssm"
+        },
+        {
+          name  = "CHAOS_SSM_PARAMETER"
+          value = local.chaos_ssm_parameter
+        },
+        {
+          name  = "OTEL_SERVICE_NAME"
+          value = "api-b-adopcion"
+        },
+        {
+          name  = "OTEL_EXPORTER_OTLP_ENDPOINT"
+          value = var.otel_exporter_endpoint
+        },
+        {
+          name  = "OTEL_EXPORTER_OTLP_PROTOCOL"
+          value = "http/protobuf"
+        },
+        {
+          name  = "OTEL_PROPAGATORS"
+          value = "tracecontext,baggage"
         }
       ]
 
@@ -87,6 +124,14 @@ resource "aws_ecs_task_definition" "api" {
         {
           name      = "DATABASE_URL"
           valueFrom = aws_secretsmanager_secret.database_url.arn
+        },
+        {
+          name      = "CHAOS_TOKEN"
+          valueFrom = aws_secretsmanager_secret.chaos_token.arn
+        },
+        {
+          name      = "OTEL_EXPORTER_OTLP_HEADERS"
+          valueFrom = aws_secretsmanager_secret.otel_headers.arn
         }
       ]
 
@@ -104,7 +149,10 @@ resource "aws_ecs_task_definition" "api" {
   depends_on = [
     aws_iam_role_policy_attachment.ecs_execution,
     aws_iam_role_policy.ecs_read_database_secret,
-    aws_secretsmanager_secret_version.database_url
+    aws_iam_role_policy.ecs_read_chaos_secrets,
+    aws_secretsmanager_secret_version.database_url,
+    aws_secretsmanager_secret_version.chaos_token,
+    aws_secretsmanager_secret_version.otel_headers
   ]
 }
 
@@ -199,6 +247,9 @@ resource "aws_ecs_service" "api" {
   task_definition = aws_ecs_task_definition.api.arn
   desired_count   = var.stable_desired_count
   launch_type     = "FARGATE"
+
+  health_check_grace_period_seconds = 60
+
   load_balancer {
     target_group_arn = aws_lb_target_group.api.arn
     container_name   = "api"

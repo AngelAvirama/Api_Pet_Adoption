@@ -53,3 +53,12 @@ output "ecs_security_group_id" {
   description = "Security group ID assigned to ECS tasks"
   value       = aws_security_group.ecs.id
 }
+output "chaos_ssm_parameter" {
+  description = "SSM parameter that holds the active chaos fault"
+  value       = local.chaos_ssm_parameter
+}
+
+output "ecs_service_name" {
+  description = "Name of the stable ECS service"
+  value       = aws_ecs_service.api.name
+}
