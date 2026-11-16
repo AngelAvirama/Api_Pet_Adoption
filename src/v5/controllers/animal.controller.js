@@ -6,12 +6,22 @@ const { resilientAnimalService } = require('../../resilience');
 const createAnimalController = ({ service }) => ({
   getRandomAnimal: async (req, res, next) => {
     try {
-      const { animal } = await service.getRandom();
+      const { animal, degradado, motivo } = await service.getRandom();
 
       if (!animal) {
         return res.status(404).json({
           error: 'No animals found',
           traceId: req.traceId
+        });
+      }
+
+      if (degradado) {
+        res.setHeader('X-Degradado', 'true');
+        return res.status(200).json({
+          data: animal,
+          traceId: req.traceId,
+          degradado: true,
+          motivo
         });
       }
 

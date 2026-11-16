@@ -52,3 +52,44 @@ describe('resilient animal service', () => {
     resilient.shutdown();
   });
 });
+
+describe('graceful degradation with the last known animal', () => {
+  beforeEach(() => jest.spyOn(console, 'log').mockImplementation(() => {}));
+  afterEach(() => jest.restoreAllMocks());
+
+  test('serves a last known animal marked as degraded when the database fails', async () => {
+    const onDegraded = jest.fn();
+    const service = { getRandom: jest.fn().mockResolvedValueOnce({ id: 7, nombre: 'Kira' }) };
+    const resilient = createResilientAnimalService({ service, config: fastConfig(true), onDegraded });
+
+    await expect(resilient.getRandom()).resolves.toEqual({ animal: { id: 7, nombre: 'Kira' }, degradado: false });
+
+    service.getRandom.mockRejectedValue(Object.assign(new Error('down'), { code: 'P1001' }));
+    const degraded = await resilient.getRandom();
+
+    expect(degraded).toEqual({ animal: { id: 7, nombre: 'Kira' }, degradado: true, motivo: 'error_base_de_datos' });
+    expect(onDegraded).toHaveBeenCalledWith('error_base_de_datos');
+    resilient.shutdown();
+  });
+
+  test('warmUp fills the fallback from the database and survives a failure', async () => {
+    const service = {
+      getRandom: jest.fn().mockRejectedValue(new Error('down')),
+      getAll: jest.fn().mockResolvedValue([{ id: 1 }, { id: 2 }])
+    };
+    const resilient = createResilientAnimalService({ service, config: fastConfig(true) });
+
+    expect(await resilient.warmUp()).toBe(2);
+    expect((await resilient.getRandom()).degradado).toBe(true);
+
+    service.getAll.mockRejectedValue(new Error('down'));
+    expect(await resilient.warmUp()).toBe(2);
+    resilient.shutdown();
+  });
+
+  test('warmUp does nothing in round 0', async () => {
+    const resilient = createResilientAnimalService({ service: { getAll: jest.fn() }, config: fastConfig(false) });
+    expect(await resilient.warmUp()).toBe(0);
+    expect(resilient.shutdown()).toBe(null);
+  });
+});

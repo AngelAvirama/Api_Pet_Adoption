@@ -1,4 +1,5 @@
 const { createDatabaseGuard, failureReason } = require('./databaseGuard');
+const { createFallbackCache } = require('./fallbackCache');
 
 class DependencyUnavailableError extends Error {
   constructor(motivo, cause) {
@@ -15,8 +16,12 @@ class DependencyUnavailableError extends Error {
 // Round 0 (enabled=false): calls the database directly, as before.
 // Round 1 (enabled=true): every call goes through the database guard, so a
 // failing database answers in at most timeoutMs and, with the circuit open,
-// immediately with a 503 + Retry-After instead of hanging.
-const createResilientAnimalService = ({ service, config, onBreakerState } = {}) => {
+// immediately. Pattern 2, graceful degradation: instead of failing, the
+// service answers with a last known animal marked degradado=true. Only when
+// it has never seen an animal does it answer 503 + Retry-After.
+const createResilientAnimalService = ({ service, config, onBreakerState, onDegraded } = {}) => {
+  const fallback = createFallbackCache({ maxSize: config.fallbackSize });
+
   const guard = config.enabled
     ? createDatabaseGuard({
       name: 'database_animals',
@@ -32,14 +37,43 @@ const createResilientAnimalService = ({ service, config, onBreakerState } = {}) 
     }
 
     try {
-      return { animal: await guard.fire(), degradado: false };
+      const animal = await guard.fire();
+      fallback.remember(animal);
+      return { animal, degradado: false };
     } catch (error) {
-      throw new DependencyUnavailableError(failureReason(error), error);
+      const motivo = failureReason(error);
+      const lastKnown = fallback.pick();
+
+      if (!lastKnown) {
+        throw new DependencyUnavailableError(motivo, error);
+      }
+
+      if (onDegraded) {
+        onDegraded(motivo);
+      }
+      return { animal: lastKnown, degradado: true, motivo };
     }
+  };
+
+  // Fills the fallback at start-up so the first failure can already degrade.
+  // Best effort: a database that is down at boot must not stop the API.
+  const warmUp = async () => {
+    if (!guard || typeof service.getAll !== 'function') {
+      return 0;
+    }
+    try {
+      const animals = await service.getAll();
+      animals.slice(0, config.fallbackSize).forEach(fallback.remember);
+    } catch (error) {
+      // the guard and the fallback will cover the next requests
+    }
+    return fallback.size();
   };
 
   return {
     getRandom,
+    warmUp,
+    fallbackSize: () => fallback.size(),
     breakerState: () => (guard ? guard.state() : 'disabled'),
     shutdown: () => guard && guard.shutdown()
   };
