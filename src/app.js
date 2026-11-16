@@ -13,11 +13,13 @@ const chaos = require('./chaos');
 const { createChaosRouter } = require('./chaos/routes');
 const metricsMiddleware = require('./middlewares/metrics.middleware');
 const { register } = require('./config/metrics');
+const { roundMiddleware } = require('./resilience/config');
 
 const app = express();
 
 app.use(traceIdMiddleware);
 app.use(versionMiddleware);
+app.use(roundMiddleware);
 app.use(metricsMiddleware);
 app.use(express.json());
 
