@@ -1,0 +1,20 @@
+{
+  "descripcion": "Umbrales de la puerta de calidad del experimento de caos de la API de adopcion (release 5). Declarados antes de la ronda 0; se confirman con la medicion del estado estable sin fallo y quedan registrados en docs/chaos/INFORME_EXPERIMENTO.md.",
+  "metrica_objetivo": "Tasa de error (5xx o sin respuesta) de GET /api/v2/animals/random medida por k6 (http_req_failed del escenario carga) durante los 5 minutos del perfil declarado",
+  "error_rate_max": 0.05,
+  "peticiones_minimas": 300,
+  "peticiones_minimas_humo": 10,
+  "perfil": {
+    "herramienta": "k6",
+    "archivo": "chaos/k6/adopcion.js",
+    "usuarios_virtuales": 10,
+    "etapas": ["30s subida a 10 VU", "4m sostenido en 10 VU", "30s bajada a 0"],
+    "duracion_total": "5m"
+  },
+  "fallo": {
+    "tipo": "indisponibilidad de una dependencia (base de datos)",
+    "dependencia": "RDS PostgreSQL via Prisma (animal.findRandom)",
+    "error_rate": 1,
+    "ttl_seconds": 420
+  }
+}
