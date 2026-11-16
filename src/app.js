@@ -9,6 +9,8 @@ const versionMiddleware = require('./middlewares/version.middleware');
 const v3Routes = require('./v3/routes');
 const v4Routes = require('./v4/routes');
 const createContractRouter = require('./v5/routes');
+const chaos = require('./chaos');
+const { createChaosRouter } = require('./chaos/routes');
 const metricsMiddleware = require('./middlewares/metrics.middleware');
 const { register } = require('./config/metrics');
 
@@ -35,6 +37,8 @@ app.get('/metrics', async (req, res) => {
   res.set('Content-Type', register.contentType);
   res.end(await register.metrics());
 });
+
+app.use('/internal/chaos', createChaosRouter(chaos));
 
 app.use('/api/animals', animalRoutes);
 app.use('/api/adoptantes', adoptanteRoutes);
