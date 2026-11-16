@@ -1,5 +1,6 @@
 const { trace } = require('@opentelemetry/api');
 const { randomUUID } = require('crypto');
+const { runWithContext } = require('../config/requestContext');
 
 const MAX_TRACE_ID_LENGTH = 128;
 const VALID_TRACE_ID = /^[A-Za-z0-9._:-]+$/;
@@ -33,7 +34,7 @@ const traceIdMiddleware = (req, res, next) => {
     activeSpan.setAttribute('app.trace_id', traceId);
   }
 
-  next();
+  runWithContext({ traceId }, next);
 };
 
 module.exports = traceIdMiddleware;
