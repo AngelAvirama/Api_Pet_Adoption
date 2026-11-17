@@ -1,0 +1,1748 @@
+{
+  "experimento": 2,
+  "ronda": "0",
+  "bitacora": [
+    {
+      "t": "2026-11-17T03:05:29.097Z",
+      "evento": "estado_estable",
+      "inesperadas": 0,
+      "salida_sin_filtrar": [
+        "ecs",
+        "alb"
+      ],
+      "cobertura": {
+        "cloudtrail_trail": false,
+        "alerta_eventbridge": false,
+        "remediacion_lambda": false,
+        "senal_app_acceso_directo": true
+      }
+    },
+    {
+      "t": "2026-11-17T03:05:34.825Z",
+      "evento": "condicion_adversa_inicio",
+      "caso": "ecs",
+      "grupo": "sg-017511f6c6a0001d8",
+      "attack": "T1562.007 Impair Defenses: Disable or Modify Cloud Firewall"
+    },
+    {
+      "t": "2026-11-17T03:05:35.730Z",
+      "evento": "regla_permisiva_creada",
+      "caso": "ecs",
+      "regla": "sgr-0ffaae4868e01cc4d"
+    },
+    {
+      "t": "2026-11-17T03:15:47.508Z",
+      "evento": "no_contenida_en_la_ventana",
+      "caso": "ecs",
+      "t_regla_retirada": null
+    },
+    {
+      "t": "2026-11-17T03:15:48.496Z",
+      "evento": "condicion_adversa_inicio",
+      "caso": "rds",
+      "grupo": "sg-04a6ef2ae25c1dbb7",
+      "attack": "T1562.007 Impair Defenses: Disable or Modify Cloud Firewall"
+    },
+    {
+      "t": "2026-11-17T03:15:49.381Z",
+      "evento": "regla_permisiva_creada",
+      "caso": "rds",
+      "regla": "sgr-04946b350455d239e"
+    },
+    {
+      "t": "2026-11-17T03:25:58.371Z",
+      "evento": "no_contenida_en_la_ventana",
+      "caso": "rds",
+      "t_regla_retirada": null
+    },
+    {
+      "t": "2026-11-17T03:25:59.032Z",
+      "evento": "prueba_salida_inicio",
+      "attack": "T1048 Exfiltration Over Alternative Protocol"
+    },
+    {
+      "t": "2026-11-17T03:25:59.032Z",
+      "evento": "prueba_salida_fin",
+      "tarea": "arn:aws:ecs:us-east-1:296121913016:task/pet-adoption-demo-cluster/c47fa96b057e48899d051772f1e4a57a",
+      "exit_code": 3,
+      "prohibido_conecta": true,
+      "permitido_conecta": true
+    },
+    {
+      "t": "2026-11-17T03:27:00.792Z",
+      "evento": "reversion",
+      "retiradas_por_el_experimento": [
+        "sgr-0ffaae4868e01cc4d",
+        "sgr-04946b350455d239e"
+      ],
+      "restantes": [],
+      "acceso_directo_bloqueado": true,
+      "verificada": true
+    },
+    {
+      "t": "2026-11-17T03:28:40.680Z",
+      "evento": "medicion",
+      "alertas": {
+        "ecs": null,
+        "rds": null
+      },
+      "app": true
+    }
+  ],
+  "estado_estable": {
+    "t": "2026-11-17T03:05:29.097Z",
+    "ventana": {
+      "activa": true,
+      "inicio": "2026-11-17T03:05:11.000Z",
+      "fin": "2026-11-17T03:55:11.000Z",
+      "motivo": "dentro de la ventana acordada"
+    },
+    "grupos": {
+      "rds": "sg-04a6ef2ae25c1dbb7",
+      "ecs": "sg-017511f6c6a0001d8",
+      "alb": "sg-03dd43001e7c0ee82"
+    },
+    "reglas": [
+      {
+        "id": "sgr-0b502811025fa30d0",
+        "grupo": "sg-017511f6c6a0001d8",
+        "salida": true,
+        "protocolo": "-1",
+        "desde": -1,
+        "hasta": -1,
+        "cidr": "0.0.0.0/0",
+        "origen": null,
+        "descripcion": ""
+      },
+      {
+        "id": "sgr-0a5416d9b1ef575db",
+        "grupo": "sg-03dd43001e7c0ee82",
+        "salida": true,
+        "protocolo": "-1",
+        "desde": -1,
+        "hasta": -1,
+        "cidr": "0.0.0.0/0",
+        "origen": null,
+        "descripcion": ""
+      },
+      {
+        "id": "sgr-03884538722bd465e",
+        "grupo": "sg-03dd43001e7c0ee82",
+        "salida": false,
+        "protocolo": "tcp",
+        "desde": 80,
+        "hasta": 80,
+        "cidr": "0.0.0.0/0",
+        "origen": null,
+        "descripcion": "HTTP"
+      },
+      {
+        "id": "sgr-060db43e28e098ed6",
+        "grupo": "sg-04a6ef2ae25c1dbb7",
+        "salida": false,
+        "protocolo": "tcp",
+        "desde": 5432,
+        "hasta": 5432,
+        "cidr": null,
+        "origen": "sg-017511f6c6a0001d8",
+        "descripcion": "PostgreSQL from ECS"
+      },
+      {
+        "id": "sgr-020ee33dd6717fa62",
+        "grupo": "sg-017511f6c6a0001d8",
+        "salida": false,
+        "protocolo": "tcp",
+        "desde": 3000,
+        "hasta": 3000,
+        "cidr": null,
+        "origen": "sg-03dd43001e7c0ee82",
+        "descripcion": "API traffic from ALB"
+      }
+    ],
+    "auditoria": {
+      "inesperadas": [],
+      "salida_sin_filtrar": [
+        "ecs",
+        "alb"
+      ],
+      "entrada_publica_en_grupos_privados": []
+    },
+    "tasks_con_ip_publica": 2,
+    "acceso_directo_bloqueado": true,
+    "acceso_directo": [
+      {
+        "ip": "3.92.49.63",
+        "traceId": "exp2-r0-estable-mwk40qrr",
+        "alcanzable": false,
+        "error": "TimeoutError"
+      },
+      {
+        "ip": "100.63.210.88",
+        "traceId": "exp2-r0-estable-mwk40quq",
+        "alcanzable": false,
+        "error": "TimeoutError"
+      }
+    ],
+    "cobertura": {
+      "cloudtrail_trail": false,
+      "alerta_eventbridge": false,
+      "remediacion_lambda": false,
+      "senal_app_acceso_directo": true
+    },
+    "alertas_sin_condicion_adversa": 0
+  },
+  "aperturas": [
+    {
+      "caso": "ecs",
+      "t": "2026-11-17T03:05:34.825Z",
+      "regla": "sgr-0ffaae4868e01cc4d",
+      "grupo": "sg-017511f6c6a0001d8"
+    },
+    {
+      "caso": "rds",
+      "t": "2026-11-17T03:15:48.496Z",
+      "regla": "sgr-04946b350455d239e",
+      "grupo": "sg-04a6ef2ae25c1dbb7"
+    }
+  ],
+  "vigilancia": {
+    "ecs": {
+      "desde": "2026-11-17T03:05:34.825Z",
+      "alcanzable": true,
+      "t_regla_retirada": null,
+      "contenida_por_control": false,
+      "muestras": [
+        {
+          "t": "2026-11-17T03:05:38.904Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk413qu",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk413rf",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:05:49.615Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk41cf9",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk41cfb",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:06:00.300Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk41ko3",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk41ko4",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:06:11.001Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk41sxb",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk41sxc",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:06:21.679Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4215w",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4215x",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:06:32.364Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk429er",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk429er",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:06:43.146Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk42hqa",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk42hqa",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:06:53.833Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk42pz5",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk42pz5",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:07:04.528Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk42y88",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk42y88",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:07:15.240Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk436h5",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk436h5",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:07:25.927Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk43eql",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk43eql",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:07:36.622Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk43mzn",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk43mzo",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:07:47.318Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk43v8q",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk43v8r",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:07:58.012Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk443hv",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk443hv",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:08:08.709Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk44bqv",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk44bqw",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:08:19.380Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk44jzf",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk44jzf",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:08:30.065Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk44s89",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk44s8a",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:08:40.749Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk450h1",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk450h1",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:08:51.434Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk458ps",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk458pt",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:09:02.132Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk45gyw",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk45gyw",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:09:12.809Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk45p7l",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk45p7l",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:09:23.490Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk45xga",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk45xgb",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:09:34.159Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk465oo",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk465op",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:09:44.822Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk46dwu",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk46dwv",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:09:55.498Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk46m5e",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk46m5f",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:10:06.187Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk46uea",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk46uea",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:10:16.877Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk472mz",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk472n0",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:10:27.546Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk47avn",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk47avn",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:10:38.222Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk47j47",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk47j48",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:10:48.905Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk47rcd",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk47rcd",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:10:59.568Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk47zl0",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk47zl0",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:11:10.246Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk487tq",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk487tr",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:11:20.916Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk48g26",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk48g26",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:11:31.579Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk48oab",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk48oac",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:11:42.464Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk48wop",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk48woq",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:11:53.134Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk494x2",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk494x2",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:12:03.830Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk49d65",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk49d66",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:12:14.503Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk49len",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk49leo",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:12:25.191Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk49tmw",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk49tmx",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:12:35.973Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4a1z2",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4a1z2",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:12:46.648Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4aa7g",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4aa7h",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:12:57.338Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4aigg",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4aigh",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:13:08.019Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4aqp3",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4aqp3",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:13:18.702Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4ayxz",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4ayy0",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:13:29.432Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4b780",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4b781",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:13:40.083Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4bffv",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4bffv",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:13:50.779Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4bnoz",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4bnoz",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:14:01.483Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4bvxx",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4bvxx",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:14:12.148Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4c46l",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4c46l",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:14:22.832Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4ccf5",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4ccf6",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:14:33.504Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4ckns",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4ckns",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:14:44.183Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4cswg",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4cswg",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:14:54.852Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4d14s",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4d14t",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:15:05.523Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4d9d6",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4d9d6",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:15:16.173Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4dhl2",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4dhl2",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:15:26.829Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4dpt2",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4dpt3",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T03:15:37.503Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "3.92.49.63",
+              "traceId": "exp2-r0-ecs-mwk4dy1j",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "100.63.210.88",
+              "traceId": "exp2-r0-ecs-mwk4dy1k",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        }
+      ]
+    },
+    "rds": {
+      "desde": "2026-11-17T03:15:48.496Z",
+      "alcanzable": false,
+      "t_regla_retirada": null,
+      "contenida_por_control": false,
+      "muestras": [
+        {
+          "t": "2026-11-17T03:15:50.032Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:16:00.675Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:16:11.337Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:16:21.999Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:16:32.672Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:16:43.338Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:16:54.010Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:17:04.668Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:17:15.328Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:17:25.986Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:17:36.664Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:17:47.327Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:17:58.044Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:18:08.808Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:18:19.479Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:18:30.168Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:18:40.832Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:18:51.505Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:19:02.196Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:19:12.888Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:19:23.559Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:19:34.231Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:19:44.892Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:19:55.567Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:20:06.239Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:20:16.909Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:20:27.603Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:20:38.300Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:20:48.978Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:20:59.662Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:21:10.350Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:21:21.038Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:21:31.723Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:21:42.417Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:21:53.110Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:22:03.965Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:22:14.647Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:22:25.332Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:22:36.019Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:22:46.698Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:22:57.395Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:23:08.064Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:23:18.740Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:23:29.422Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:23:40.105Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:23:50.798Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:24:01.473Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:24:12.152Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:24:22.843Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:24:33.528Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:24:44.219Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:24:54.903Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:25:05.592Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:25:16.273Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:25:26.949Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:25:37.677Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T03:25:48.361Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        }
+      ]
+    }
+  },
+  "salida": {
+    "t": "2026-11-17T03:25:59.032Z",
+    "tarea": "arn:aws:ecs:us-east-1:296121913016:task/pet-adoption-demo-cluster/c47fa96b057e48899d051772f1e4a57a",
+    "exit_code": 3,
+    "prohibido_conecta": true,
+    "permitido_conecta": true
+  },
+  "reversion": {
+    "t": "2026-11-17T03:27:00.792Z",
+    "retiradas_por_el_experimento": [
+      "sgr-0ffaae4868e01cc4d",
+      "sgr-04946b350455d239e"
+    ],
+    "restantes": [],
+    "acceso_directo_bloqueado": true,
+    "verificada": true
+  },
+  "mediciones": {
+    "t": "2026-11-17T03:28:36.323Z",
+    "cloudtrail": {
+      "ecs": {
+        "t": "2026-11-17T03:05:35.000Z",
+        "evento": "28bdd026-dabd-4aa9-8afe-5f35f4554e2d"
+      },
+      "rds": {
+        "t": "2026-11-17T03:15:49.000Z",
+        "evento": "bdf51d30-3c89-45db-8aa3-b776cbc32bca"
+      }
+    },
+    "alertas": {
+      "ecs": null,
+      "rds": null
+    },
+    "app": {
+      "ecs": {
+        "t": "2026-11-17T03:05:41.067Z",
+        "total": 114,
+        "ejemplo": "{\"timestamp\":\"2026-11-17T03:05:38.388Z\",\"level\":\"warn\",\"service\":\"api-b-adopcion\",\"traceId\":\"exp2-r0-ecs-mwk413qu\",\"otelTraceId\":\"e9ca9e395e3b0d33bba12e18fbd9203c\",\"message\":\"Request reached the task without the load balancer\",\"evento\":\"acceso_directo_sin_alb\",\"method\":\"GET\",\"route\":\"/api/v2/animals/random\",\"ip\":\"::ffff:3.41.210.69\",\"agente\":\"exp2-sonda-externa\"}"
+      }
+    }
+  },
+  "resumen": {
+    "tecnicas": [
+      {
+        "caso": "ecs",
+        "attack": "T1562.007 Impair Defenses: Disable or Modify Cloud Firewall",
+        "t_inicio": "2026-11-17T03:05:34.825Z",
+        "expuesto": true,
+        "senal_registrada": true,
+        "senales": [
+          "cloudtrail",
+          "log_app"
+        ],
+        "t_senal_s": 0.2,
+        "detectado": false,
+        "detectado_por": [],
+        "mttd_s": null,
+        "contenido": false,
+        "mttc_s": null
+      },
+      {
+        "caso": "rds",
+        "attack": "T1562.007 Impair Defenses: Disable or Modify Cloud Firewall",
+        "t_inicio": "2026-11-17T03:15:48.496Z",
+        "expuesto": false,
+        "senal_registrada": true,
+        "senales": [
+          "cloudtrail"
+        ],
+        "t_senal_s": 0.5,
+        "detectado": false,
+        "detectado_por": [],
+        "mttd_s": null,
+        "contenido": false,
+        "mttc_s": null
+      },
+      {
+        "caso": "salida",
+        "attack": "T1048 Exfiltration Over Alternative Protocol",
+        "t_inicio": "2026-11-17T03:25:59.032Z",
+        "expuesto": true,
+        "senal_registrada": false,
+        "senales": [],
+        "t_senal_s": null,
+        "detectado": false,
+        "detectado_por": [],
+        "mttd_s": null,
+        "contenido": false,
+        "mttc_s": null,
+        "nota": "prevencion por filtrado de salida; no hay deteccion (requiere VPC Flow Logs)"
+      }
+    ],
+    "senal_registrada": "2/3",
+    "cobertura_deteccion": "0/3",
+    "contencion": "0/3",
+    "falsos_positivos": 0
+  }
+}

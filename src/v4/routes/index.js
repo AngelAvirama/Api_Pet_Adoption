@@ -9,7 +9,8 @@ const router = express.Router();
 router.get('/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
-    version: 'v2',
+    version: 'v4',
+    track: 'canary',
     traceId: req.traceId
   });
 });

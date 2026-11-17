@@ -1,0 +1,129 @@
+const { redisClient, connectRedis } = require('../../config/redis');
+const {
+  recordCacheHit,
+  recordCacheMiss
+} = require('../../config/otelMetrics');
+const logger = require('../../config/logger');
+
+const CACHE_TTL = 60;
+
+const isRedisEnabled = () => process.env.REDIS_ENABLED !== 'false';
+
+const getExternalData = async (url, cacheKey, cacheName) => {
+  if (isRedisEnabled()) {
+    try {
+      await connectRedis();
+
+      const cachedData = await redisClient.get(cacheKey);
+
+      if (cachedData) {
+        await redisClient.incr('metrics:cache:hits');
+
+        recordCacheHit(cacheName);
+
+        logger.info('Redis cache hit', {
+          cacheKey,
+          cacheName
+        });
+
+        return JSON.parse(cachedData);
+      }
+
+      await redisClient.incr('metrics:cache:misses');
+
+      recordCacheMiss(cacheName);
+
+      logger.info('Redis cache miss', {
+        cacheKey,
+        cacheName
+      });
+    } catch (error) {
+      logger.error('Redis unavailable', {
+        error: error.message
+      });
+    }
+  }
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`External API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  if (isRedisEnabled()) {
+    try {
+      await redisClient.setEx(
+        cacheKey,
+        CACHE_TTL,
+        JSON.stringify(data)
+      );
+    } catch (error) {
+      logger.error('Redis cache write error', {
+        cacheKey,
+        error: error.message
+      });
+    }
+  }
+
+  return data;
+};
+
+const getRandomVuelo = () => {
+  const url = `${process.env.JUAN_API_URL}/api/v2/entidades/vuelos/random`;
+
+  return getExternalData(
+    url,
+    'juan:vuelo:random',
+    'juan_vuelo'
+  );
+};
+
+const getRandomImagen = () => {
+  const url = `${process.env.LEONARDO_API_URL}/api/v2/imagenes/random`;
+
+  return getExternalData(
+    url,
+    'leonardo:imagen:random',
+    'leonardo_imagen'
+  );
+};
+
+const getCacheMetrics = async () => {
+  if (!isRedisEnabled()) {
+    return {
+      hits: 0,
+      misses: 0
+    };
+  }
+
+  try {
+    await connectRedis();
+
+    const [hits, misses] = await Promise.all([
+      redisClient.get('metrics:cache:hits'),
+      redisClient.get('metrics:cache:misses')
+    ]);
+
+    return {
+      hits: Number(hits || 0),
+      misses: Number(misses || 0)
+    };
+  } catch (error) {
+    logger.error('Redis metrics error', {
+      error: error.message
+    });
+
+    return {
+      hits: 0,
+      misses: 0
+    };
+  }
+};
+
+module.exports = {
+  getRandomVuelo,
+  getRandomImagen,
+  getCacheMetrics
+};

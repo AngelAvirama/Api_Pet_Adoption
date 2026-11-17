@@ -9,6 +9,22 @@ on:
         required: true
         type: boolean
         default: false
+      resilience_enabled:
+        description: "Chaos round: false = round 0 (no protections), true = round 1"
+        required: true
+        type: boolean
+        default: false
+      security_hardening:
+        description: "Security game day round: false = round 0 (controls as before), true = round 1 (detection, containment, egress filtering)"
+        required: true
+        type: boolean
+        default: false
+      desired_count:
+        description: "Number of API tasks"
+        required: true
+        type: choice
+        options: ["1", "2"]
+        default: "2"
 
 permissions:
   contents: read
@@ -22,6 +38,11 @@ env:
   AWS_REGION: us-east-1
   AWS_ROLE_ARN: arn:aws:iam::296121913016:role/github-actions-pet-adoption
   TF_IN_AUTOMATION: "true"
+  TF_VAR_chaos_token: ${{ secrets.CHAOS_TOKEN }}
+  TF_VAR_otel_exporter_headers: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+  TF_VAR_resilience_enabled: ${{ inputs.resilience_enabled }}
+  TF_VAR_security_hardening_enabled: ${{ inputs.security_hardening }}
+  TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
 
 jobs:
   deploy:
@@ -89,21 +110,30 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Tags are immutable in ECR: a new run of the same commit reuses the
+          # image already pushed instead of failing on the push.
+          if aws ecr describe-images \
+            --repository-name pet-adoption-api \
+            --image-ids imageTag="${IMAGE_TAG}" >/dev/null 2>&1; then
+            echo "La imagen ${IMAGE_TAG} ya existe en ECR; se reutiliza."
+            exit 0
+          fi
+
           docker build --tag "${REPOSITORY_URL}:${IMAGE_TAG}" .
           docker push "${REPOSITORY_URL}:${IMAGE_TAG}"
 
       - name: Plan infrastructure
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-          TF_VAR_image_tag: ${{ github.sha }}-${{ github.run_attempt }}
-          TF_VAR_api_desired_count: "0"
+          TF_VAR_stable_image_tag: ${{ github.sha }}-${{ github.run_attempt }}
+          TF_VAR_stable_desired_count: "0"
         run: terraform -chdir=terraform plan -out=tfplan
 
       - name: Create infrastructure with API stopped
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-          TF_VAR_image_tag: ${{ github.sha }}-${{ github.run_attempt }}
-          TF_VAR_api_desired_count: "0"
+          TF_VAR_stable_image_tag: ${{ github.sha }}-${{ github.run_attempt }}
+          TF_VAR_stable_desired_count: "0"
         run: terraform -chdir=terraform apply -auto-approve tfplan
 
       - name: Run Prisma database migrations
@@ -215,8 +245,8 @@ jobs:
       - name: Start API service
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-          TF_VAR_image_tag: ${{ github.sha }}-${{ github.run_attempt }}
-          TF_VAR_api_desired_count: "1"
+          TF_VAR_stable_image_tag: ${{ github.sha }}-${{ github.run_attempt }}
+          TF_VAR_stable_desired_count: ${{ inputs.desired_count }}
         run: terraform -chdir=terraform apply -auto-approve
 
       - name: Verify API health
@@ -233,6 +263,15 @@ jobs:
               "${API_URL}/api/health"; then
               echo
               echo "API disponible correctamente."
+              EXPECTED_ROUND=$([ "${{ inputs.resilience_enabled }}" = "true" ] && echo 1 || echo 0)
+              curl --fail --silent --show-error -D /tmp/headers.txt \
+                -H "X-Trace-Id: deploy-check-${{ github.run_id }}" \
+                "${API_URL}/api/v2/animals/random"
+              echo
+              grep -qi "^x-trace-id: deploy-check-${{ github.run_id }}" /tmp/headers.txt
+              grep -qi "^x-ronda: ${EXPECTED_ROUND}" /tmp/headers.txt
+              echo "Contrato /api/v2 y ronda ${EXPECTED_ROUND} verificados."
+              echo "URL para medical-api-api-c-url: ${API_URL}" >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
 

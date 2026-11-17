@@ -12,11 +12,28 @@ resource "aws_security_group" "alb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  # Round 0: unfiltered egress, as before the game day
+  dynamic "egress" {
+    for_each = var.security_hardening_enabled ? [] : [1]
+    content {
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  }
+
+  # Round 1: the ALB only talks to the tasks, on the app port. CIDRs of the
+  # task subnets instead of the ECS group, to avoid a reference cycle.
+  dynamic "egress" {
+    for_each = var.security_hardening_enabled ? [1] : []
+    content {
+      description = "Only to the tasks (app port)"
+      from_port   = var.api_port
+      to_port     = var.api_port
+      protocol    = "tcp"
+      cidr_blocks = aws_subnet.public[*].cidr_block
+    }
   }
 
   tags = {
@@ -37,11 +54,40 @@ resource "aws_security_group" "ecs" {
     security_groups = [aws_security_group.alb.id]
   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  # Round 0: unfiltered egress, as before the game day
+  dynamic "egress" {
+    for_each = var.security_hardening_enabled ? [] : [1]
+    content {
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  }
+
+  # Round 1, deny by default: HTTPS only (ECR, Secrets Manager, SSM,
+  # CloudWatch Logs, Grafana Cloud) and PostgreSQL only to the database
+  # subnets. Anything else (plain HTTP, SSH, other ports) is dropped.
+  dynamic "egress" {
+    for_each = var.security_hardening_enabled ? [1] : []
+    content {
+      description = "HTTPS to AWS APIs and Grafana Cloud"
+      from_port   = 443
+      to_port     = 443
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  }
+
+  dynamic "egress" {
+    for_each = var.security_hardening_enabled ? [1] : []
+    content {
+      description = "PostgreSQL only to the database subnets"
+      from_port   = 5432
+      to_port     = 5432
+      protocol    = "tcp"
+      cidr_blocks = aws_subnet.private[*].cidr_block
+    }
   }
 
   tags = {

@@ -18,3 +18,24 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+
+# Local Terraform artifacts
+*.tfplan
+*.backup
+
+# Local Docker build artifacts
+/docker-build/
+
+# Temporary Terraform diagnostic files
+/terraform/canary-metrics.json
+/terraform/metric-query.json
+/terraform/migration-logs.json
+/terraform/run-task-diagnostic.json
+/terraform/run-task-migrate.json
+/terraform/run-task-status.json
+/terraform/run-task-tables.json
+# Stop switch of the security game day (never versioned)
+chaos/security/results/STOP
+
+# Lambda packages built by Terraform
+terraform/.build/

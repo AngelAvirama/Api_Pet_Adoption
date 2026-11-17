@@ -1,0 +1,18 @@
+{
+  "ronda": "1",
+  "aprobado": true,
+  "umbral": {
+    "error_rate_max": 0.05
+  },
+  "medido": {
+    "perfil": "completo",
+    "error_rate": 0.00008430281571404485,
+    "peticiones": 35586,
+    "degradadas": 0.999915697184286,
+    "p95_ms": 104.098281,
+    "experimento": "completed",
+    "desviado": false
+  },
+  "motivos": [],
+  "evaluado": "2026-11-17T00:11:02.353Z"
+}

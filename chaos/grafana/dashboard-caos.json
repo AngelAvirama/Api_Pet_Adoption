@@ -1,0 +1,708 @@
+{
+  "title": "Pet Adoption API v5: experimento de caos (indisponibilidad de la base de datos)",
+  "uid": "pet-adoption-caos-v5",
+  "tags": [
+    "chaos",
+    "release-5",
+    "pet-adoption",
+    "aws"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "description": "Ventana de inyeccion del fallo y metrica objetivo (tasa de error de GET /api/v2/animals/random) en las dos rondas. Seleccione un rango que cubra la ronda 0 y la ronda 1 para verlas lado a lado.",
+  "templating": {
+    "list": [
+      {
+        "name": "ds_prom",
+        "type": "datasource",
+        "query": "prometheus",
+        "label": "Prometheus (Grafana Cloud)"
+      },
+      {
+        "name": "ds_loki",
+        "type": "datasource",
+        "query": "loki",
+        "label": "Loki"
+      },
+      {
+        "name": "ds_tempo",
+        "type": "datasource",
+        "query": "tempo",
+        "label": "Tempo"
+      },
+      {
+        "name": "job",
+        "type": "custom",
+        "query": "api-b-adopcion",
+        "current": {
+          "text": "api-b-adopcion",
+          "value": "api-b-adopcion"
+        },
+        "label": "Servicio"
+      },
+      {
+        "name": "trace_id",
+        "type": "textbox",
+        "query": "",
+        "label": "Trace id"
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "name": "Fallo inyectado (interruptor de caos)",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${ds_prom}"
+        },
+        "enable": true,
+        "iconColor": "red",
+        "expr": "max(chaos_fault_active{job=\"$job\"}) == 1",
+        "step": "15s",
+        "titleFormat": "Fallo activo en la base de datos"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Ronda 0: tasa de error del contrato (rango visible)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "description": "Metrica objetivo de la ronda 0 sobre el rango de tiempo seleccionado. Umbral: 5 %.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "(sum(increase(http_server_requests_total{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\", app_round=\"0\", http_status_code=~\"5..\"}[$__range])) or vector(0)) / sum(increase(http_server_requests_total{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\", app_round=\"0\"}[$__range]))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Ronda 1: tasa de error del contrato (rango visible)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "description": "Metrica objetivo de la ronda 1 sobre el rango de tiempo seleccionado. Umbral: 5 %.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "(sum(increase(http_server_requests_total{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\", app_round=\"1\", http_status_code=~\"5..\"}[$__range])) or vector(0)) / sum(increase(http_server_requests_total{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\", app_round=\"1\"}[$__range]))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Fallos inyectados en la base de datos (rango visible)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "description": "Consultas a la base de datos que el interruptor hizo fallar. En la ronda 0 terminan en 500; en la ronda 1 las absorben los patrones.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(increase(chaos_injected_failures_total{job=\"$job\"}[$__range]))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Respuestas degradadas en lugar de error (rango visible)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "description": "Solo existen en la ronda 1: 200 con el ultimo animal conocido y degradado=true.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(increase(responses_degraded_total{job=\"$job\"}[$__range])) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Metrica objetivo: tasa de error de GET /api/v2/animals/random por ronda",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "(sum by (app_round) (rate(http_server_requests_total{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\", http_status_code=~\"5..\"}[1m])) or sum by (app_round) (rate(http_server_requests_total{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\"}[1m])) * 0) / sum by (app_round) (rate(http_server_requests_total{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\"}[1m]))",
+          "legendFormat": "ronda {{app_round}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "Fraccion de respuestas 5xx del contrato que consume el coordinador. Umbral declarado: 5 % (chaos/slo.json). La franja roja es la ventana de inyeccion. El filtro de ruta acepta /animals/random porque antes del commit 01ced47 los 5xx se etiquetaban sin el prefijo /api/v2."
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Peticiones por segundo por codigo de estado y ronda",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum by (http_status_code, app_round) (rate(http_server_requests_total{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\"}[1m]))",
+          "legendFormat": "{{http_status_code}} ronda {{app_round}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Latencia p95 del contrato por ronda (ms)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 14,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, app_round) (rate(http_server_duration_milliseconds_bucket{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\", app_round!=\"\"}[2m])))",
+          "legendFormat": "p95 ronda {{app_round}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "state-timeline",
+      "title": "Fallo activo en el interruptor de caos (ventana de inyeccion)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 12,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "max by (tipo) (chaos_fault_active{job=\"$job\"})",
+          "legendFormat": "{{tipo}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "sin fallo",
+                  "color": "green"
+                },
+                "1": {
+                  "text": "FALLO ACTIVO",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showValue": "auto",
+        "mergeValues": true
+      }
+    },
+    {
+      "id": 9,
+      "type": "state-timeline",
+      "title": "Estado del circuit breaker de la base de datos (ronda 1)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 22,
+        "w": 12,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "max by (circuito) (circuit_breaker_state{job=\"$job\"})",
+          "legendFormat": "{{circuito}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "cerrado",
+                  "color": "green"
+                },
+                "1": {
+                  "text": "semiabierto",
+                  "color": "yellow"
+                },
+                "2": {
+                  "text": "abierto",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showValue": "auto",
+        "mergeValues": true
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Fallos inyectados y respuestas degradadas por segundo",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(rate(chaos_injected_failures_total{job=\"$job\"}[1m]))",
+          "legendFormat": "fallos inyectados en la base de datos"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum by (motivo) (rate(responses_degraded_total{job=\"$job\"}[1m]))",
+          "legendFormat": "degradada: {{motivo}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "Ronda 0: los fallos inyectados se convierten en 500. Ronda 1: el timeout, el circuito y la degradacion los convierten en 200 con degradado=true."
+    },
+    {
+      "id": 11,
+      "type": "logs",
+      "title": "Logs correlacionados por trace id (Loki)",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 24,
+        "h": 9
+      },
+      "description": "Elija en la variable Loki la fuente grafanacloud-<stack>-logs (no la de alert-state-history) y escriba en trace_id el X-Trace-Id del coordinador o de k6 (k6-r0-..., k6-r1-...).",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "{service_name=\"$job\"} |= \"$trace_id\""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "id": 12,
+      "type": "table",
+      "title": "Trazas del contrato (Tempo)",
+      "datasource": {
+        "type": "tempo",
+        "uid": "${ds_tempo}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 45,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "${ds_tempo}"
+          },
+          "queryType": "traceql",
+          "query": "{ resource.service.name = \"$job\" && span.app.trace_id =~ \".*$trace_id.*\" }",
+          "limit": 20
+        }
+      ]
+    }
+  ]
+}

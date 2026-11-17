@@ -1,0 +1,21 @@
+﻿{
+  "version": "1.0.0",
+  "evaluation_window_minutes": 5,
+  "minimum_requests": 100,
+  "thresholds": {
+    "http_5xx_error_rate_percent": 1,
+    "http_p95_latency_ms": 500,
+    "cpu_utilization_percent": 80,
+    "memory_utilization_percent": 80
+  },
+  "comparison": {
+    "enabled": true,
+    "baseline": "stable",
+    "candidate": "canary"
+  },
+  "decision": {
+    "on_threshold_violation": "rollback",
+    "canary_traffic_weight_on_failure": 0,
+    "stable_traffic_weight_on_failure": 100
+  }
+}

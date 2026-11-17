@@ -1,0 +1,109 @@
+{
+  "id": "seguridad_sg_ingreso_publico",
+  "titulo": "Regla de entrada abierta a Internet en un security group privado (ECS o RDS)",
+  "capa": "red",
+  "propietario": "Angel",
+  "experimento": 2,
+  "fuente": "CloudTrail (eventos de gestion) -> EventBridge -> Lambda pet-adoption-demo-revocar-ingreso-publico (security/lambda/revocar-ingreso-publico/decidir.js)",
+  "attack": ["T1562.007 Impair Defenses: Disable or Modify Cloud Firewall"],
+  "d3fend": ["D3-ITF Inbound Traffic Filtering", "D3-NTF Network Traffic Filtering"],
+  "severidad": "CRITICAL",
+  "umbral": "1 evento",
+  "terraform": "aws_cloudwatch_event_rule.seguridad_sg (terraform/seguridad.tf)",
+  "patron_eventbridge": {
+    "source": ["aws.ec2"],
+    "detail-type": ["AWS API Call via CloudTrail"],
+    "detail": {
+      "eventSource": ["ec2.amazonaws.com"],
+      "eventName": ["AuthorizeSecurityGroupIngress", "ModifySecurityGroupRules"]
+    }
+  },
+  "grupos_protegidos": ["sg-ecs-ejemplo", "sg-rds-ejemplo"],
+  "casos": {
+    "positivos": [
+      {
+        "nombre": "experimento: 3000 del ECS abierto a 0.0.0.0/0",
+        "entrada": {
+          "source": "aws.ec2", "detail-type": "AWS API Call via CloudTrail",
+          "detail": {
+            "eventSource": "ec2.amazonaws.com", "eventName": "AuthorizeSecurityGroupIngress", "eventTime": "2026-11-17T15:00:00Z",
+            "sourceIPAddress": "190.1.2.3", "userIdentity": { "arn": "arn:aws:iam::296121913016:user/angel" },
+            "requestParameters": { "groupId": "sg-ecs-ejemplo", "ipPermissions": { "items": [ { "ipProtocol": "tcp", "fromPort": 3000, "toPort": 3000, "ipRanges": { "items": [ { "cidrIp": "0.0.0.0/0", "description": "chaos-exp2 ronda 1 ecs" } ] } } ] } },
+            "responseElements": { "_return": true, "securityGroupRuleSet": { "items": [ { "securityGroupRuleId": "sgr-0abc", "groupId": "sg-ecs-ejemplo", "isEgress": false, "cidrIpv4": "0.0.0.0/0", "fromPort": 3000 } ] } }
+          }
+        }
+      },
+      {
+        "nombre": "puerto de la base de datos abierto a IPv6 publico",
+        "entrada": {
+          "source": "aws.ec2", "detail-type": "AWS API Call via CloudTrail",
+          "detail": {
+            "eventSource": "ec2.amazonaws.com", "eventName": "AuthorizeSecurityGroupIngress",
+            "requestParameters": { "groupId": "sg-rds-ejemplo", "ipPermissions": { "items": [ { "ipProtocol": "tcp", "fromPort": 5432, "ipv6Ranges": { "items": [ { "cidrIpv6": "::/0" } ] } } ] } },
+            "responseElements": { "securityGroupRuleSet": { "items": [ { "securityGroupRuleId": "sgr-0def", "isEgress": false, "cidrIpv6": "::/0" } ] } }
+          }
+        }
+      },
+      {
+        "nombre": "regla existente modificada para abrirla a Internet",
+        "entrada": {
+          "source": "aws.ec2", "detail-type": "AWS API Call via CloudTrail",
+          "detail": {
+            "eventSource": "ec2.amazonaws.com", "eventName": "ModifySecurityGroupRules",
+            "requestParameters": { "ModifySecurityGroupRulesRequest": { "GroupId": "sg-ecs-ejemplo", "SecurityGroupRule": { "SecurityGroupRuleId": "sgr-0ghi", "SecurityGroupRule": { "IpProtocol": "tcp", "FromPort": 22, "ToPort": 22, "CidrIpv4": "0.0.0.0/0" } } } }
+          }
+        }
+      }
+    ],
+    "negativos": [
+      {
+        "nombre": "el ALB publica el 80 a Internet (declarado)",
+        "entrada": {
+          "source": "aws.ec2", "detail-type": "AWS API Call via CloudTrail",
+          "detail": {
+            "eventSource": "ec2.amazonaws.com", "eventName": "AuthorizeSecurityGroupIngress",
+            "requestParameters": { "groupId": "sg-alb-ejemplo", "ipPermissions": { "items": [ { "fromPort": 80, "ipRanges": { "items": [ { "cidrIp": "0.0.0.0/0" } ] } } ] } }
+          }
+        }
+      },
+      {
+        "nombre": "terraform permite el ALB hacia el ECS (referencia a grupo)",
+        "entrada": {
+          "source": "aws.ec2", "detail-type": "AWS API Call via CloudTrail",
+          "detail": {
+            "eventSource": "ec2.amazonaws.com", "eventName": "AuthorizeSecurityGroupIngress",
+            "requestParameters": { "groupId": "sg-ecs-ejemplo", "ipPermissions": { "items": [ { "fromPort": 3000, "groups": { "items": [ { "groupId": "sg-alb-ejemplo" } ] } } ] } },
+            "responseElements": { "securityGroupRuleSet": { "items": [ { "securityGroupRuleId": "sgr-0jkl", "isEgress": false, "referencedGroupInfo": { "groupId": "sg-alb-ejemplo" } } ] } }
+          }
+        }
+      },
+      {
+        "nombre": "intento fallido (sin permisos): no cambio nada",
+        "entrada": {
+          "source": "aws.ec2", "detail-type": "AWS API Call via CloudTrail",
+          "detail": {
+            "eventSource": "ec2.amazonaws.com", "eventName": "AuthorizeSecurityGroupIngress", "errorCode": "Client.UnauthorizedOperation",
+            "requestParameters": { "groupId": "sg-ecs-ejemplo", "ipPermissions": { "items": [ { "ipRanges": { "items": [ { "cidrIp": "0.0.0.0/0" } ] } } ] } }
+          }
+        }
+      },
+      {
+        "nombre": "lectura de los grupos (auditoria del estado estable)",
+        "entrada": {
+          "source": "aws.ec2", "detail-type": "AWS API Call via CloudTrail",
+          "detail": { "eventSource": "ec2.amazonaws.com", "eventName": "DescribeSecurityGroupRules", "requestParameters": { "groupId": "sg-ecs-ejemplo" } }
+        }
+      },
+      {
+        "nombre": "regla de salida publica en el ECS (la cubre el filtrado de salida, no esta regla)",
+        "entrada": {
+          "source": "aws.ec2", "detail-type": "AWS API Call via CloudTrail",
+          "detail": {
+            "eventSource": "ec2.amazonaws.com", "eventName": "ModifySecurityGroupRules",
+            "requestParameters": { "ModifySecurityGroupRulesRequest": { "GroupId": "sg-ecs-ejemplo", "SecurityGroupRule": { "SecurityGroupRuleId": "sgr-0mno", "SecurityGroupRule": { "IpProtocol": "-1", "CidrIpv4": "0.0.0.0/0", "IsEgress": true } } } }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,309 @@
+{
+  "ronda": "0",
+  "perfil": "completo",
+  "base_url": "http://pet-adoption-demo-alb-66249762.us-east-1.elb.amazonaws.com",
+  "umbrales": {
+    "error_rate_max": 0.05
+  },
+  "generado": "2026-11-16T23:58:48.616Z",
+  "state": {
+    "isStdOutTTY": false,
+    "isStdErrTTY": false,
+    "testRunDurationMs": 300068.416686
+  },
+  "metrics": {
+    "http_req_failed{scenario:carga}": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "fails": 0,
+        "rate": 1,
+        "passes": 33778
+      },
+      "thresholds": {
+        "rate<0.05": {
+          "ok": false
+        }
+      }
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 79.77296081020557,
+        "min": 64.210077,
+        "med": 69.469787,
+        "p(90)": 85.4126826,
+        "p(95)": 120.05202439999996,
+        "p(99)": 345.7320005000006,
+        "max": 590.621033
+      }
+    },
+    "respuesta_degradada": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "fails": 33778,
+        "rate": 0,
+        "passes": 0
+      }
+    },
+    "http_req_duration{expected_response:true}": {
+      "values": {
+        "med": 67.9518765,
+        "p(90)": 85.7741266,
+        "p(95)": 97.29038635000002,
+        "p(99)": 376.6405305999997,
+        "max": 469.173858,
+        "avg": 79.34372108333329,
+        "min": 64.210077
+      },
+      "type": "trend",
+      "contains": "time"
+    },
+    "error_contrato": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 1,
+        "passes": 33778,
+        "fails": 0
+      }
+    },
+    "data_sent": {
+      "type": "counter",
+      "contains": "data",
+      "values": {
+        "count": 7030855,
+        "rate": 23430.839798635938
+      }
+    },
+    "http_req_tls_handshaking": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(90)": 0,
+        "p(95)": 0,
+        "p(99)": 0,
+        "max": 0,
+        "avg": 0,
+        "min": 0,
+        "med": 0
+      }
+    },
+    "http_req_blocked": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "min": 0.001323,
+        "med": 0.002695,
+        "p(90)": 0.004068,
+        "p(95)": 0.004629,
+        "p(99)": 0.006181,
+        "max": 70.773006,
+        "avg": 0.02671679785205139
+      }
+    },
+    "checks": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0.3352880405372165,
+        "passes": 34077,
+        "fails": 67558
+      }
+    },
+    "http_req_failed{scenario:guardia}": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0.0033222591362126247,
+        "passes": 1,
+        "fails": 300
+      },
+      "thresholds": {
+        "rate<0.5": {
+          "ok": true
+        }
+      }
+    },
+    "http_req_failed": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0.9911969247923942,
+        "passes": 33779,
+        "fails": 300
+      }
+    },
+    "http_req_waiting": {
+      "contains": "time",
+      "values": {
+        "min": 64.158621,
+        "med": 69.414214,
+        "p(90)": 85.3589266,
+        "p(95)": 119.99090979999998,
+        "p(99)": 345.6678493600005,
+        "max": 590.569236,
+        "avg": 79.7135597016928
+      },
+      "type": "trend"
+    },
+    "http_req_receiving": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 0.04493307608791359,
+        "min": 0.0163,
+        "med": 0.040876,
+        "p(90)": 0.0659204,
+        "p(95)": 0.07589669999999997,
+        "p(99)": 0.09544998000000002,
+        "max": 0.319745
+      }
+    },
+    "vus": {
+      "type": "gauge",
+      "contains": "default",
+      "values": {
+        "value": 1,
+        "min": 0,
+        "max": 10
+      }
+    },
+    "vus_max": {
+      "type": "gauge",
+      "contains": "default",
+      "values": {
+        "max": 12,
+        "value": 12,
+        "min": 12
+      }
+    },
+    "http_req_connecting": {
+      "contains": "time",
+      "values": {
+        "avg": 0.02348215038586813,
+        "min": 0,
+        "med": 0,
+        "p(90)": 0,
+        "p(95)": 0,
+        "p(99)": 0,
+        "max": 68.614313
+      },
+      "type": "trend"
+    },
+    "iteration_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(95)": 120.77878429999996,
+        "p(99)": 345.8856097600007,
+        "max": 590.747308,
+        "avg": 79.93575555497488,
+        "min": 64.328577,
+        "med": 69.600979,
+        "p(90)": 85.64544640000005
+      }
+    },
+    "http_req_sending": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 0.014468032424660184,
+        "min": 0.00547,
+        "med": 0.013625,
+        "p(90)": 0.021039,
+        "p(95)": 0.023875899999999988,
+        "p(99)": 0.03641880000000016,
+        "max": 0.56585
+      }
+    },
+    "data_received": {
+      "values": {
+        "count": 14584435,
+        "rate": 48603.698986626645
+      },
+      "type": "counter",
+      "contains": "data"
+    },
+    "iterations": {
+      "values": {
+        "count": 34079,
+        "rate": 113.5707662151636
+      },
+      "type": "counter",
+      "contains": "default"
+    },
+    "duracion_contrato": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(90)": 85.37006679999999,
+        "p(95)": 120.13709104999968,
+        "p(99)": 344.1189935600009,
+        "max": 590.621033,
+        "avg": 79.77676402492747,
+        "min": 65.914399,
+        "med": 69.4824145
+      }
+    },
+    "http_reqs": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 34079,
+        "rate": 113.5707662151636
+      }
+    }
+  },
+  "root_group": {
+    "groups": [],
+    "checks": [
+      {
+        "path": "::health 200",
+        "id": "8e4f90a842a57472549a6b2cf699032d",
+        "passes": 300,
+        "fails": 1,
+        "name": "health 200"
+      },
+      {
+        "name": "estado 200",
+        "path": "::estado 200",
+        "id": "188e815b6e6374ff2b2dfda559ffcad9",
+        "passes": 0,
+        "fails": 33778
+      },
+      {
+        "passes": 33777,
+        "fails": 1,
+        "name": "trace id devuelto",
+        "path": "::trace id devuelto",
+        "id": "6537f3d9d34e29968d8573579cf30adf"
+      },
+      {
+        "name": "animal en el cuerpo",
+        "path": "::animal en el cuerpo",
+        "id": "0aaad0e6ff0e81f8165eea9b610d0a1b",
+        "passes": 0,
+        "fails": 33778
+      }
+    ],
+    "name": "",
+    "path": "",
+    "id": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "options": {
+    "summaryTrendStats": [
+      "avg",
+      "min",
+      "med",
+      "p(90)",
+      "p(95)",
+      "p(99)",
+      "max"
+    ],
+    "summaryTimeUnit": "",
+    "noColor": false
+  }
+}

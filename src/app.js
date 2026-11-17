@@ -5,13 +5,23 @@ const adoptanteRoutes = require('./routes/adoptante.routes');
 const adopcionRoutes = require('./routes/adopcion.routes');
 const errorHandler = require('./middlewares/error.middleware');
 const traceIdMiddleware = require('./middlewares/traceId.middleware');
-const v2Routes = require('./v2/routes');
+const originMiddleware = require('./middlewares/origin.middleware');
+const versionMiddleware = require('./middlewares/version.middleware');
+const v3Routes = require('./v3/routes');
+const v4Routes = require('./v4/routes');
+const createContractRouter = require('./v5/routes');
+const chaos = require('./chaos');
+const { createChaosRouter } = require('./chaos/routes');
 const metricsMiddleware = require('./middlewares/metrics.middleware');
 const { register } = require('./config/metrics');
+const { roundMiddleware } = require('./resilience/config');
 
 const app = express();
 
 app.use(traceIdMiddleware);
+app.use(originMiddleware);
+app.use(versionMiddleware);
+app.use(roundMiddleware);
 app.use(metricsMiddleware);
 app.use(express.json());
 
@@ -32,12 +42,16 @@ app.get('/metrics', async (req, res) => {
   res.end(await register.metrics());
 });
 
+app.use('/internal/chaos', createChaosRouter(chaos));
+
 app.use('/api/animals', animalRoutes);
 app.use('/api/adoptantes', adoptanteRoutes);
 app.use('/api/adopciones', adopcionRoutes);
 
-app.use('/api/v2', v2Routes);
-
+app.use('/api/v2', createContractRouter('v2'));
+app.use('/api/v3', v3Routes);
+app.use('/api/v4', v4Routes);
+app.use('/api/v5', createContractRouter('v5'));
 app.use(errorHandler);
 
 module.exports = app;

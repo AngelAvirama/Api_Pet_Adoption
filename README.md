@@ -1,0 +1,1370 @@
+# 🐾 Pet Adoption API – Ingeniería del Caos, Defensa en Profundidad (v5) y Canary Deployment en AWS
+
+API REST para la gestión de animales, adoptantes y adopciones, con una estrategia de despliegue progresivo **Canary Deployment** sobre Amazon Web Services (AWS).
+
+El proyecto permite mantener dos versiones de la API ejecutándose simultáneamente, distribuir el tráfico entre ellas mediante porcentajes configurables y evaluar el comportamiento de la nueva versión antes de promoverla completamente a producción.
+
+La solución incorpora automatización CI/CD, monitoreo con Amazon CloudWatch, pruebas de carga concurrente, un Quality Gate y un mecanismo de recuperación mediante rollback.
+
+## 💥 Release 5: Ingeniería del Caos (`v5.0.0`)
+
+La release 5 integra esta API en el flujo de extremo a extremo del grupo y le agrega una plataforma de
+experimentación de Ingeniería del Caos definida como código. El experimento de esta API es la
+**indisponibilidad de una dependencia**: la base de datos (RDS PostgreSQL) de la ruta que consume el
+coordinador. El detalle de la ejecución está en [`chaos/README.md`](chaos/README.md) y los resultados en el
+[informe del experimento](docs/chaos/INFORME_EXPERIMENTO.md).
+
+**URL pública vigente:** `http://pet-adoption-demo-alb-66249762.us-east-1.elb.amazonaws.com`
+(guardada por el coordinador en Secret Manager como `medical-api-api-c-url`).
+
+| Pieza | Dónde |
+|---|---|
+| Contrato del coordinador `GET /api/v2/animals/random` y `/api/v2/health` (también en `/api/v5`) | `src/v5/` |
+| Trace id: respeta el `X-Trace-Id` recibido, lo devuelve y lo escribe en cada log | `src/middlewares/traceId.middleware.js`, `src/config/requestContext.js`, `src/config/logger.js` |
+| Interruptor de fallos propio (`/internal/chaos`, estado en SSM, token y TTL) | `src/chaos/` |
+| Patrones de resiliencia (timeout + circuit breaker, degradación con el último animal conocido) | `src/resilience/` |
+| Experimento de Chaos Toolkit, k6, sondas, puerta de calidad y SLO | `chaos/` |
+| Infraestructura (secretos, rol del task con mínimo privilegio, variables de la ronda, OTel) | `terraform/chaos.tf`, `terraform/ecs.tf` |
+| Workflows: despliegue y chaos gate | `.github/workflows/deploy-terraform.yml`, `.github/workflows/chaos-gate.yml` |
+| Tablero de Grafana Cloud | `chaos/grafana/dashboard-caos.json` |
+| Informe y evidencia de las rondas | `docs/chaos/INFORME_EXPERIMENTO.md`, `chaos/results/` |
+
+### Arquitectura del flujo, puntos de inyección y radio de impacto
+
+```mermaid
+flowchart LR
+  k6["k6 + Chaos Toolkit<br/>(GitHub Actions)"]
+  subgraph GCP["GCP: GKE (Leonardo)"]
+    C["Coordinador<br/>GET /api/v5/flujo/:imagenId"]
+  end
+  subgraph AWS["AWS: API de adopción (Angel)"]
+    ALB["ALB"] --> T["ECS Fargate<br/>2 tasks"]
+    T -.->|"estado del fallo<br/>(cada 3 s)"| SSM[("SSM Parameter Store")]
+    subgraph RI["Radio de impacto de Angel"]
+      Q["animal.findRandom<br/>PUNTO DE INYECCIÓN (b)"]
+    end
+    T --> Q --> RDS[("RDS PostgreSQL")]
+  end
+  subgraph OCI["OCI: API de vuelos (Juan)"]
+    V["GET /api/v2/entidades/vuelos/random<br/>PUNTO DE INYECCIÓN (c)"]
+  end
+  k6 -->|"carga de Angel: GET /api/v2/animals/random"| ALB
+  k6 -->|"POST/DELETE /internal/chaos<br/>X-Chaos-Token"| ALB
+  C ==>|"1. animal + X-Trace-Id + traceparent<br/>PUNTO DE INYECCIÓN (a): latencia"| ALB
+  C -->|"2. vuelo + X-Trace-Id"| V
+  T -.->|"OTLP: trazas, métricas, logs"| G["Grafana Cloud<br/>(Tempo, Prometheus, Loki)"]
+  C -.-> G
+```
+
+- **Puntos de inyección:** (a) latencia en la llamada saliente del coordinador hacia esta API (experimento de
+  Leonardo); (b) falla de la base de datos dentro de esta API (experimento de Angel); (c) agotamiento de
+  recursos en la API de vuelos (experimento de Juan).
+- **Frontera del radio de impacto de Angel:** solo la consulta `animal.findRandom` en los tasks del servicio
+  ECS. RDS, el ALB, `/api/health`, el resto de rutas y las otras dos nubes no se tocan.
+- **Dónde se mide:** la métrica objetivo la mide k6 en el cliente; la API expone la misma señal por OTLP
+  (`http_server_requests_total` por ruta, código y ronda), además de `chaos_fault_active`,
+  `chaos_injected_failures_total`, `degraded_responses_total` y `circuit_breaker_state`.
+
+### Matriz integrante, fallo, métrica objetivo y patrón de resiliencia
+
+| Integrante | Nube | Fallo | Métrica objetivo (instrumento, ventana) | Patrones de resiliencia |
+|---|---|---|---|---|
+| Leonardo | GCP (GKE, 2 réplicas) | (a) latencia de 3000 ms en la llamada saliente hacia la API de Angel | p95 extremo a extremo de `GET /api/v5/flujo` < 2000 ms (k6, 5 min) | timeout por dependencia + circuit breaker + respuesta degradada |
+| **Angel** | **AWS (ECS + ALB + RDS)** | **(b) indisponibilidad de la base de datos (100 % de fallos sostenidos)** | **tasa de error de `GET /api/v2/animals/random` < 5 % (k6, 5 min)** | **timeout de 1 s + circuit breaker; degradación con el último animal conocido** |
+| Juan | OCI | (c) agotamiento del pool de conexiones o del límite de concurrencia | throughput sostenido o p99 (k6, 5 min) | control de admisión + mamparo con timeout por consulta |
+
+### Rondas del experimento de Angel (AWS, 2026-11-16)
+
+| Métrica | Estado estable (sin fallo) | Ronda 0 (sin protección) | Ronda 1 (con patrones) |
+|---|---|---|---|
+| Tasa de error | 0,0025 % | **100 %** | **0,0084 %** (-99,99 %) |
+| Respuestas degradadas | 0 % | 0 % | 99,99 % |
+| Experimento / puerta | — | `deviated` / rechazada | `completed` / aprobada |
+
+La ronda se cambia con la variable `RESILIENCE_ENABLED` (input `resilience_enabled` de *Deploy Terraform and
+ECS*); la cabecera `X-Ronda` de toda respuesta indica la ronda desplegada.
+
+### Puerta de calidad (chaos gate)
+
+`chaos-gate.yml` es manual (`workflow_dispatch`) y exige `ventana_autorizada=true`. Comprueba la ronda
+desplegada, valida el experimento y el script de k6, ejecuta `chaos run --rollback-strategy=always`, revierte el
+fallo en un paso `if: always()` que falla si queda un fallo activo, evalúa `chaos/gate.js` contra
+`chaos/slo.json` y sube la evidencia como artefacto. No usa `continue-on-error`: la ronda 0 termina en rojo a
+propósito y la ronda 1 en verde. El modo `estado-estable` mide la línea base con la misma carga y sin fallo.
+
+### Qué se conserva, se modifica o se retira
+
+| Pieza | Estado en v5 |
+|---|---|
+| ECS Fargate + ALB + RDS (Terraform, despliegue con OIDC) | **Conservado** y ampliado: 2 tasks, rol propio del task, secretos del interruptor y de Grafana, variables de la ronda |
+| Rutas `/api` (CRUD), `/api/v3` y `/api/v4` | **Conservadas** sin cambios funcionales |
+| Contrato `/api/v2` | **Restaurado** para el coordinador (en la v4 solo existían `/api/v3` y `/api/v4`) |
+| Canary (servicio ECS, target group, workflows `canary-*`) | **Conservado** con 0 tasks; no participa del flujo v5 |
+| Redis (caché de la v2) | **Retirado** (`REDIS_ENABLED=false`): el respaldo de la degradación vive en memoria de cada task |
+| Llamadas de esta API a las de Juan y Leonardo (composición de la v2) | **Fuera del flujo v5**: el coordinador es quien encadena las tres APIs |
+| Kubernetes (`k8s/`, EKS) | **Fuera del despliegue**: el requisito de Kubernetes lo cubre el coordinador en GKE |
+
+## 🛡️ Defensa en profundidad: game day de Ingeniería del Caos de Seguridad (`v5.0.0`)
+
+Esta API aporta al game day del grupo el **experimento 2: exposición y segmentación** (capa de red, AWS). Los
+experimentos 1 (identidad) y 4 (datos, grupal) y la IA en la defensa están en el repositorio de Leonardo; el
+3 (telemetría e IA), en el de Juan. Informe del experimento:
+[`docs/security/INFORME_GAMEDAY_EXP2.md`](docs/security/INFORME_GAMEDAY_EXP2.md).
+
+### Arquitectura por capas: fronteras de confianza, inyección y telemetría
+
+```mermaid
+flowchart TB
+  INET(("Internet<br/>(no confiable)"))
+  subgraph CUENTA["Frontera: cuenta AWS del grupo"]
+    subgraph PUB["Subredes públicas"]
+      ALB["ALB<br/>SG: solo 80 desde Internet<br/>salida: solo 3000 a los tasks"]
+      T["Tasks ECS (2)<br/>SG: solo el ALB al 3000<br/>salida: 443 y 5432 a la BD"]
+    end
+    subgraph PRIV["Subredes privadas (sin ruta a Internet)"]
+      RDS[("RDS PostgreSQL<br/>SG: solo ECS al 5432")]
+    end
+    CT["CloudTrail"] --> EB["EventBridge<br/>regla 01 (detección como código)"]
+    EB --> L["Lambda: retira la regla<br/>(contención)"]
+    EB --> LG["Log /aws/events/...-seguridad"]
+    CW["CloudWatch Logs del contenedor"] --> AL["Alarma 02:<br/>acceso directo sin ALB"]
+    L --> SNS["SNS: correo al responsable"]
+    AL --> SNS
+  end
+  INET -->|"ruta declarada"| ALB --> T --> RDS
+  INET -.->|"INYECCIÓN ecs: 3000 abierto<br/>(ruta no declarada)"| T
+  INET -.->|"INYECCIÓN rds: 5432 abierto"| RDS
+  T -.->|"INYECCIÓN salida: TCP 80"| INET
+  T -->|"log con traceId<br/>acceso_directo_sin_alb"| CW
+  T -->|"OTLP"| GC["Grafana Cloud"]
+```
+
+- **Fronteras de confianza:** Internet → ALB (única entrada pública declarada) → tasks → base de datos en
+  subredes privadas. Cada salto se controla con un security group que referencia al anterior.
+- **Puntos de inyección:** las tres flechas punteadas (casos `ecs`, `rds` y `salida`).
+- **Puntos de recolección de telemetría:** CloudTrail (cambios de red), EventBridge y el log de la Lambda
+  (alerta y contención), CloudWatch Logs del contenedor (acceso sin ALB con `traceId`) y Grafana Cloud.
+
+### Resultado del experimento 2
+
+| Métrica | Ronda 0 (controles como estaban) | Ronda 1 (con mejoras) |
+|---|---|---|
+| MTTD exposición ECS / RDS | no detectada / no detectada | **13,0 s / 14,2 s** |
+| MTTC exposición ECS / RDS | no contenida / no contenida | **21,1 s / 13,1 s** |
+| Salida a un puerto no permitido | conecta | bloqueada |
+| Cobertura de detección | 0/3 | **2/3** |
+| Contención | 0/3 | **3/3** |
+| Falsos positivos | 0 | 0 |
+| Hipótesis (alerta ≤ 5 min, contención ≤ 10 min) | refutada | se mantiene |
+
+### Tabla de trazabilidad control - experimento - marco
+
+| Control | Experimento | MITRE ATT&CK | MITRE D3FEND | ISO/IEC 27001:2022 | NIST SP 800-53 | NIST SP 800-207 |
+|---|---|---|---|---|---|---|
+| Alerta y contención de reglas públicas (CloudTrail, EventBridge, Lambda, SNS) | 2 | T1562.007 | D3-ITF, D3-NTF | A.8.20, A.8.16 | SC-7, SI-4, IR-4 | verificación continua |
+| Alarma de acceso sin ALB (log con `traceId`) | 2 | T1562.007, T1190 | D3-NTA | A.8.16 | SI-4, AU-6 | verificación continua |
+| Denegación por defecto y filtrado de salida | 2 | T1048 | D3-OTF | A.8.20, A.8.22 | SC-7(5) | microsegmentación |
+| Base de datos en subredes privadas | 2 | T1562.007 | D3-NI | A.8.22 | SC-7 | microsegmentación |
+| Rol OIDC limitado por rama; Lambda con mínimo privilegio | 2 | T1078.004 | D3-UAP | A.5.15, A.8.2 | AC-6 | mínimo privilegio |
+
+### Cómo reproducirlo
+
+| Pieza | Dónde |
+|---|---|
+| Experimento como código (estado estable, abrir, vigilar, salida, revertir, medir, informe) | `chaos/security/exp2-exposicion/` |
+| Utilidades: ventana `CHAOS_WINDOW`, interruptor `STOP`, bitácora | `chaos/security/comun.js` |
+| Detección como código con casos positivos y negativos | `chaos/security/detecciones/*.json`, `evaluar.js` |
+| Lambda de contención | `security/lambda/revocar-ingreso-publico/` |
+| Infraestructura de las mejoras | `terraform/seguridad.tf`, `terraform/security_groups.tf` |
+| Evidencia de las dos rondas | `chaos/security/results/exp2-ronda-*.json`, `docs/security/img/` |
+
+1. *Deploy Terraform and ECS* con `security_hardening=false` (ronda 0) o `true` (ronda 1). La variable de
+   GitHub `ALERT_EMAIL` define el correo de las alertas (hay que confirmar la suscripción de SNS).
+2. *Security game day* con `ventana_autorizada=true` y la `ronda`. El workflow evalúa la detección como
+   código, mide el estado estable, ejecuta los tres casos, revierte siempre y sube la evidencia.
+3. Sin AWS: `node chaos/security/detecciones/evaluar.js` y `npx jest tests/security`.
+
+Interruptor de parada: crear `chaos/security/results/STOP` detiene cualquier acción adversa.
+
+---
+
+# Releases anteriores: Canary Deployment (v4)
+
+## 📖 Descripción del proyecto
+
+Pet Adoption API es un servicio backend desarrollado con Node.js y Express que administra la información relacionada con el proceso de adopción de mascotas.
+
+Sus principales entidades son:
+
+- **Animal:** información de los animales disponibles para adopción.
+- **Adoptante:** información de las personas interesadas en adoptar.
+- **Adopción:** registro y administración de los procesos de adopción.
+
+La persistencia de datos se realiza mediante PostgreSQL y Prisma ORM.
+
+Como parte de la evolución del proyecto, se implementó una estrategia de despliegue Canary en AWS. Esta estrategia permite introducir una nueva versión del API sin retirar inmediatamente la versión estable.
+
+La nueva versión recibe inicialmente una proporción controlada del tráfico. Durante cada etapa se evalúan las métricas de rendimiento, errores y consumo de recursos. Dependiendo de los resultados, el proceso puede continuar, detenerse o ejecutar una reversión.
+
+### Objetivos
+
+- Mantener disponibles simultáneamente las versiones Stable y Canary.
+- Controlar la distribución del tráfico mediante porcentajes.
+- Identificar qué versión y track atienden cada solicitud.
+- Evaluar el rendimiento mediante pruebas concurrentes.
+- Monitorear las señales doradas de observabilidad.
+- Automatizar las decisiones de promoción mediante un Quality Gate.
+- Recuperar el tráfico hacia Stable cuando se detecte una regresión.
+- Reducir el riesgo asociado a los despliegues de nuevas versiones.
+
+---
+
+## 🛠️ Tecnologías utilizadas
+
+| Tecnología | Función |
+|---|---|
+| Node.js | Entorno de ejecución |
+| Express | Framework backend |
+| Prisma ORM | Acceso y administración de datos |
+| PostgreSQL | Base de datos relacional |
+| Amazon ECS | Ejecución de contenedores |
+| Amazon ECR | Almacenamiento de imágenes |
+| Application Load Balancer | Distribución de tráfico |
+| Amazon RDS | Base de datos administrada |
+| Amazon CloudWatch | Métricas, alarmas y monitoreo |
+| AWS IAM | Control de acceso |
+| GitHub Actions | Automatización CI/CD |
+| GitHub Actions OIDC | Autenticación temporal con AWS |
+| PowerShell | Automatización de despliegues y pruebas |
+| Bash | Ejecución de pruebas automatizadas |
+| Terraform | Infraestructura como código |
+| Docker | Construcción y empaquetado de la API |
+
+---
+
+## 🏗️ Arquitectura general
+
+La infraestructura utiliza Amazon ECS para ejecutar las dos versiones del API y un Application Load Balancer para distribuir las solicitudes entre ellas.
+
+El balanceador cuenta con dos Target Groups:
+
+- Target Group Stable.
+- Target Group Canary.
+
+Cada Target Group se encuentra asociado a su respectivo servicio ECS.
+
+Amazon CloudWatch recopila métricas de los servicios y del balanceador. Estas métricas son utilizadas por el Quality Gate para evaluar si la nueva versión cumple los criterios de promoción.
+
+GitHub Actions coordina el proceso de despliegue y se autentica en AWS mediante OIDC.
+
+### Diagrama de arquitectura
+
+```mermaid
+flowchart TD
+    USER[Usuarios y clientes] --> ALB[Application Load Balancer]
+
+    ALB --> SPLIT[Traffic Splitting]
+
+    SPLIT -->|Peso Stable| TG_STABLE[Target Group Stable]
+    SPLIT -->|Peso Canary| TG_CANARY[Target Group Canary]
+
+    TG_STABLE --> ECS_STABLE[ECS Service Stable]
+    TG_CANARY --> ECS_CANARY[ECS Service Canary]
+
+    ECS_STABLE --> DB[(Amazon RDS PostgreSQL)]
+    ECS_CANARY --> DB
+
+    ECS_STABLE --> CW[Amazon CloudWatch]
+    ECS_CANARY --> CW
+    ALB --> CW
+
+    GH[GitHub Actions] --> OIDC[OIDC]
+    OIDC --> IAM[IAM Role]
+    IAM --> ALB
+
+    GH --> TEST[Pruebas concurrentes]
+    TEST --> GATE[Quality Gate]
+    CW --> GATE
+
+    GATE -->|PROMOTE| NEXT[Siguiente etapa]
+    GATE -->|HOLD| WAIT[Detener promoción]
+    GATE -->|ROLLBACK| RB[Rollback a Stable]
+```
+
+### Flujo general
+
+1. El usuario realiza una solicitud al API.
+2. El Application Load Balancer recibe la solicitud.
+3. El listener determina el Target Group según los pesos configurados.
+4. El servicio ECS correspondiente procesa la solicitud.
+5. La aplicación consulta PostgreSQL cuando necesita acceder a los datos.
+6. Las métricas de ejecución se recopilan en CloudWatch.
+7. El Quality Gate evalúa los resultados.
+8. La automatización decide si continúa la promoción o ejecuta rollback.
+
+---
+
+## ☁️ Infraestructura AWS
+
+La solución se encuentra desplegada en AWS, en la región `us-east-1`.
+
+### Recursos principales
+
+| Recurso | Identificador |
+|---|---|
+| Región | `us-east-1` |
+| Cluster ECS | `pet-adoption-demo-cluster` |
+| Servicio Stable | `pet-adoption-demo-api` |
+| Servicio Canary | `pet-adoption-demo-api-canary` |
+| Application Load Balancer | `pet-adoption-demo-alb` |
+| Target Group Stable | `pet-adoption-demo-tg` |
+| Target Group Canary | `pet-adoption-demo-canary-tg` |
+| Repositorio ECR | `pet-adoption-api` |
+
+### Servicios ECS
+
+| Característica | Stable | Canary |
+|---|---|---|
+| Servicio | `pet-adoption-demo-api` | `pet-adoption-demo-api-canary` |
+| Versión | 3.0.2 | 4.0.4 |
+| Task Definition | Revisión 7 | Revisión 5 |
+| Réplicas deseadas | 1 | 1 |
+| Réplicas ejecutándose | 1 | 1 |
+
+Los servicios se mantienen activos simultáneamente para permitir una recuperación rápida en caso de que la versión Canary presente problemas.
+
+### Base de datos
+
+La aplicación utiliza PostgreSQL mediante Amazon RDS.
+
+Prisma ORM administra el acceso a los datos y las migraciones del esquema.
+
+Las credenciales y la cadena de conexión se gestionan mediante variables de entorno y recursos de AWS, evitando almacenar información sensible directamente en el código.
+
+---
+
+## 🔀 Versiones Stable y Canary
+
+La implementación mantiene dos versiones del API:
+
+**Stable**
+
+- Versión desplegada: `3.0.2`.
+- Servicio: `pet-adoption-demo-api`.
+- Representa la versión estable disponible como alternativa de recuperación.
+
+**Canary**
+
+- Versión desplegada: `4.0.4`.
+- Servicio: `pet-adoption-demo-api-canary`.
+- Contiene la versión más reciente que se evalúa durante la estrategia de promoción.
+
+La aplicación contiene rutas versionadas para las diferentes versiones del API.
+
+Entre las rutas implementadas se encuentra:
+
+```http
+/api/v3
+/api/v4
+```
+
+El endpoint utilizado para las pruebas de recomendaciones es:
+
+```http
+GET /api/v4/animals/recommendations
+```
+
+**Nota sobre el versionado:** el despliegue actualmente registrado utiliza Stable 3.0.2 y Canary 4.0.4. Esto debe distinguirse de la nomenclatura v2/v3 mencionada como ejemplo en el enunciado académico.
+
+---
+
+## 🚦 Estrategia Canary Deployment
+
+Canary Deployment permite liberar una nueva versión gradualmente, exponiéndola inicialmente a un porcentaje pequeño de usuarios.
+
+En lugar de reemplazar completamente la versión anterior, ambas permanecen disponibles mientras se evalúa la nueva implementación.
+
+### Plan de promoción
+
+| Etapa | Stable | Canary | Objetivo |
+|---|---:|---:|---|
+| Etapa 0 | 100 % público | 0 % público | Pruebas internas y de humo |
+| Etapa 1 | 95 % | 5 % | Exposición inicial |
+| Etapa 2 | 75 % | 25 % | Evaluación intermedia |
+| Etapa 3 | 50 % | 50 % | Incremento de exposición |
+| Etapa 4 | 0 % | 100 % | Promoción completa |
+
+La etapa 0 permite probar Canary mediante una regla interna sin asignarle tráfico público.
+
+### Tiempo de observación
+
+La configuración actual de promoción utiliza:
+
+| Parámetro | Valor |
+|---|---:|
+| Tiempo de observación (Bake Time) | 2 minutos |
+| Espera adicional de CloudWatch | 120 segundos |
+| Solicitudes de prueba concurrente | 1.000 |
+| Trabajadores concurrentes | 20 |
+| Ventana de evaluación de métricas | 5 minutos |
+| Mínimo de solicitudes para Quality Gate | 20 |
+
+El tiempo de observación se configura en:
+
+`scripts/canary-promote.ps1`
+
+Parámetros principales:
+
+```powershell
+[int]$BakeMinutes = 2,
+[int]$CloudWatchDelaySeconds = 120,
+[int]$ConcurrentRequests = 1000,
+[int]$ConcurrentWorkers = 20,
+[int]$WindowMinutes = 5,
+[int]$MinRequests = 20
+```
+
+Cada etapa se ejecuta individualmente mediante GitHub Actions.
+
+El tiempo de observación y la ventana de evaluación de CloudWatch son parámetros distintos: reducir el Bake Time no implica reducir automáticamente la ventana de métricas.
+
+### Mecanismo de distribución
+
+El Application Load Balancer utiliza pesos en sus Target Groups para controlar el porcentaje de solicitudes que recibe cada versión.
+
+Ejemplo de configuración para una etapa del 25 %:
+
+```text
+Stable: 75 %
+Canary: 25 %
+```
+
+La modificación se realiza sobre la acción predeterminada del listener.
+
+---
+
+## 🏷️ Identificación de versión y track
+
+Para identificar qué versión atendió una solicitud, la aplicación incorpora middleware de versionado.
+
+Las respuestas deben permitir identificar:
+
+- La versión del API.
+- El track que atendió la solicitud: `stable` o `canary`.
+
+Los encabezados utilizados son:
+
+```http
+X-App-Version
+X-App-Track
+```
+
+Ejemplo conceptual:
+
+```http
+HTTP/1.1 200 OK
+X-App-Version: 4.0.4
+X-App-Track: canary
+Content-Type: application/json
+```
+
+La identificación permite:
+
+- Diferenciar las respuestas de Stable y Canary.
+- Analizar el tráfico por versión.
+- Verificar la distribución realizada por el balanceador.
+- Asociar métricas y errores con una versión específica.
+
+---
+
+## 🔐 Acceso interno a Canary
+
+Además del tráfico público, se configuró una regla independiente en el listener para permitir pruebas internas de la versión Canary.
+
+La regla utiliza:
+
+```http
+X-Canary: true
+```
+
+También requiere una dirección IP de origen autorizada.
+
+Esto permite ejecutar pruebas directamente sobre Canary sin modificar el porcentaje de tráfico público.
+
+La regla interna se mantiene separada de la acción predeterminada del listener, por lo que las modificaciones de los porcentajes públicos no deben eliminarla.
+
+La dirección IP autorizada debe administrarse como configuración de infraestructura y no exponerse innecesariamente en documentación pública.
+
+---
+
+## 📊 Observabilidad y monitoreo
+
+La infraestructura utiliza Amazon CloudWatch para monitorear el comportamiento de los servicios Stable y Canary.
+
+Se implementó un dashboard de CloudWatch mediante Terraform.
+
+Archivo:
+
+`terraform/dashboard.tf`
+
+Nombre del dashboard:
+
+`pet-adoption-demo-canary-dashboard`
+
+### Métricas monitoreadas
+
+**Tráfico**
+
+- Número de solicitudes recibidas por Stable.
+- Número de solicitudes recibidas por Canary.
+
+**Errores HTTP**
+
+- Errores HTTP 4xx.
+- Errores HTTP 5xx.
+
+**Latencia**
+
+- Percentil 50 (p50).
+- Percentil 95 (p95).
+- Percentil 99 (p99).
+
+**Saturación**
+
+- Utilización de CPU.
+- Utilización de memoria.
+
+El dashboard contiene comparaciones lado a lado entre Stable y Canary para facilitar el análisis del comportamiento de ambas versiones.
+
+### Métricas de negocio
+
+La aplicación utiliza la métrica personalizada:
+
+```text
+AnimalRecommendationRequests
+```
+
+Esta métrica permite contabilizar solicitudes relacionadas con las recomendaciones de animales.
+
+Se identifica mediante las dimensiones:
+
+```text
+AppVersion=v4
+AppTrack=canary
+```
+
+Esto permite diferenciar las solicitudes procesadas por la nueva versión.
+
+---
+
+## 🎯 SLI, SLO y Quality Gate
+
+El Quality Gate es el mecanismo encargado de evaluar si la versión Canary cumple los criterios mínimos de calidad.
+
+Su implementación se encuentra en:
+
+`scripts/canary-quality-gate.ps1`
+
+### Umbrales configurados
+
+| Indicador | Umbral |
+|---|---:|
+| Mínimo de solicitudes | 20 |
+| Tasa máxima de errores 5xx | 1 % |
+| Latencia máxima p95 | 1 segundo |
+| CPU | Alarma de CloudWatch |
+| Memoria | Alarma de CloudWatch |
+
+### Decisiones
+
+El Quality Gate tiene tres posibles resultados:
+
+| Decisión | Código de salida | Significado |
+|---|---:|---|
+| PROMOTE | 0 | Canary cumple los criterios |
+| HOLD | 1 | Evidencia insuficiente o métricas no concluyentes |
+| ROLLBACK | 2 | Se incumple un umbral crítico |
+
+### PROMOTE
+
+Se produce cuando:
+
+- Existe una muestra suficiente de solicitudes.
+- La tasa de errores 5xx está dentro del límite.
+- La latencia p95 cumple el umbral.
+- Las alarmas de recursos no indican una condición crítica.
+
+La etapa puede considerarse aprobada.
+
+### HOLD
+
+Se produce cuando:
+
+- La cantidad de solicitudes es insuficiente.
+- Las métricas no están disponibles.
+- No existe evidencia concluyente para tomar una decisión.
+
+En este escenario no se debe promover la nueva versión.
+
+### ROLLBACK
+
+Se produce cuando se detecta una violación crítica de los criterios establecidos.
+
+El proceso de promoción debe detenerse y se debe recuperar el tráfico hacia Stable.
+
+---
+
+## 🧪 Pruebas de carga concurrente
+
+Para evaluar el comportamiento de Canary se implementó un script de pruebas concurrentes:
+
+`scripts/canary-concurrent-test.ps1`
+
+El script genera solicitudes hacia el endpoint de recomendaciones y registra información sobre:
+
+- Código HTTP.
+- Versión que respondió.
+- Track que respondió.
+- Tiempo de respuesta.
+- Cantidad de solicitudes por versión.
+- Errores registrados.
+
+La configuración utilizada para las pruebas fue:
+
+| Parámetro | Valor |
+|---|---:|
+| Solicitudes por ejecución | 1.000 |
+| Trabajadores concurrentes | 20 |
+| Endpoint | `/api/v4/animals/recommendations` |
+| Modo | Público |
+| Resultado | Archivo CSV |
+
+Los resultados se exportan en archivos con el formato:
+
+```text
+scripts/canary-concurrent-<timestamp>.csv
+```
+
+Estos archivos permiten conservar evidencia de las pruebas y analizar posteriormente la distribución real del tráfico.
+
+---
+
+## ⚠️ Inyección de fallos
+
+La estrategia contempla la posibilidad de provocar una regresión controlada en Canary para comprobar la capacidad de detección del Quality Gate.
+
+La inyección de fallos debe afectar exclusivamente a la versión Canary.
+
+El objetivo es simular escenarios como:
+
+- Incremento de errores HTTP 500.
+- Aumento de latencia.
+- Degradación del comportamiento del endpoint.
+
+La simulación puede utilizar parámetros o variables de entorno habilitados exclusivamente para pruebas controladas.
+
+La versión Stable debe permanecer sin alteraciones.
+
+**Importante:** la validación de la lógica ROLLBACK mediante métricas simuladas no equivale a demostrar una inyección de fallos real sobre AWS. La evidencia de un evento real debe documentarse por separado.
+
+---
+
+## 🔄 Rollback y recuperación
+
+El mecanismo de rollback permite restablecer el tráfico público hacia la versión Stable cuando Canary presenta una regresión.
+
+Script:
+
+`scripts/canary-rollback.ps1`
+
+### Distribución después del rollback
+
+```text
+Stable: 100 %
+Canary: 0 %
+```
+
+El proceso realiza las siguientes acciones:
+
+1. Consulta la configuración actual del listener.
+2. Verifica los Target Groups configurados.
+3. Construye la nueva acción predeterminada.
+4. Establece Stable con peso 100.
+5. Establece Canary con peso 0.
+6. Modifica el listener cuando se ejecuta en modo real.
+
+El script incluye un modo de simulación:
+
+```powershell
+.\scripts\canary-rollback.ps1 -DryRun
+```
+
+Este modo muestra la configuración que se aplicaría, sin modificar AWS.
+
+Para ejecutar el rollback sin confirmación interactiva:
+
+```powershell
+.\scripts\canary-rollback.ps1 -Force
+```
+
+El mecanismo de rollback modifica la acción predeterminada del listener y conserva la regla interna de acceso Canary.
+
+---
+
+## ⚙️ Automatización con GitHub Actions
+
+La estrategia Canary se automatiza mediante:
+
+`.github/workflows/canary-deploy.yml`
+
+Nombre del workflow:
+
+`Canary - Controlled Promotion`
+
+El workflow se ejecuta manualmente desde la pestaña Actions del repositorio.
+
+### Parámetros de ejecución
+
+| Parámetro | Opciones |
+|---|---|
+| Branch | `feature/canary-deployment-v4` |
+| Stage | 5, 25, 50, 100 |
+| Mode | simulate, apply |
+| Confirmation | PROMOVER para apply |
+
+### Flujo del pipeline
+
+```mermaid
+flowchart TD
+    A[Run workflow] --> B[Automated safety tests]
+    B --> C{Tests passed?}
+
+    C -->|No| X[Stop workflow]
+    C -->|Yes| D[Validate inputs]
+
+    D --> E[Configure AWS OIDC]
+    E --> F[Verify AWS identity]
+    F --> G[Describe ALB listener]
+    G --> H[Validate PowerShell scripts]
+
+    H --> I{Mode}
+
+    I -->|simulate| J[Simulate selected stage]
+    I -->|apply| K[Apply selected stage]
+
+    K --> L[Concurrent traffic test]
+    L --> M[Wait for metrics]
+    M --> N[CloudWatch Quality Gate]
+
+    N -->|PROMOTE| O[Stage approved]
+    N -->|HOLD| P[Stop promotion]
+    N -->|ROLLBACK| Q[Automatic rollback]
+```
+
+### Trabajos del workflow
+
+**1. Canary automated safety tests**
+
+Ejecuta pruebas aisladas para validar:
+
+- PROMOTE.
+- HOLD.
+- ROLLBACK.
+- Rollback DryRun.
+
+El trabajo de promoción depende de que estas pruebas terminen correctamente.
+
+**2. Canary stage**
+
+Ejecuta la etapa seleccionada:
+
+- Valida la configuración.
+- Se autentica en AWS.
+- Consulta el listener.
+- Ejecuta el script de promoción.
+- Evalúa métricas.
+- Aprueba o revierte la etapa.
+
+### Modos de ejecución
+
+**simulate**
+
+Permite validar el flujo de ejecución sin modificar los pesos reales del listener.
+
+**apply**
+
+Ejecuta la modificación real de la distribución de tráfico y realiza las validaciones posteriores.
+
+Para autorizarlo se requiere escribir exactamente:
+
+```text
+PROMOVER
+```
+
+Los artefactos CSV generados por las pruebas pueden almacenarse como artefactos de GitHub Actions.
+
+---
+
+## 🔑 Autenticación AWS mediante OIDC
+
+GitHub Actions utiliza OpenID Connect (OIDC) para autenticarse en AWS.
+
+Este mecanismo permite obtener credenciales temporales sin almacenar claves de acceso permanentes en GitHub Secrets.
+
+### Rol IAM
+
+```text
+github-actions-pet-adoption-canary
+```
+
+### Permisos principales
+
+| Permiso | Función |
+|---|---|
+| `elasticloadbalancing:DescribeListeners` | Consultar el listener |
+| `elasticloadbalancing:ModifyListener` | Modificar la distribución de tráfico |
+| `cloudwatch:GetMetricStatistics` | Consultar métricas |
+| `cloudwatch:DescribeAlarms` | Consultar alarmas |
+
+El permiso de modificación se restringe al listener del despliegue.
+
+La confianza OIDC se limita al repositorio y a la rama autorizada.
+
+---
+
+## 🗄️ Compatibilidad de datos: Expand/Contract
+
+La estrategia Expand/Contract permite evolucionar el esquema de la base de datos sin impedir que la versión anterior continúe funcionando.
+
+El objetivo es evitar migraciones destructivas durante el periodo en el que Stable y Canary conviven.
+
+### Fase 1: Expand
+
+Se realizan cambios compatibles con la versión anterior.
+
+Ejemplos:
+
+- Agregar columnas opcionales.
+- Crear nuevas tablas.
+- Agregar índices.
+- Mantener los campos utilizados por Stable.
+- Evitar eliminar o renombrar columnas existentes.
+
+### Fase 2: Migrate and Deploy
+
+Se despliega la nueva versión utilizando el esquema ampliado.
+
+Durante esta etapa:
+
+- Stable continúa funcionando.
+- Canary utiliza las nuevas funcionalidades.
+- Ambas versiones mantienen compatibilidad con la base de datos.
+
+### Fase 3: Contract
+
+Una vez que la nueva versión ha sido promovida y se ha confirmado que la versión anterior ya no necesita utilizar el esquema antiguo, se pueden retirar los elementos obsoletos.
+
+Esta etapa debe realizarse de manera independiente y controlada.
+
+### Consideraciones
+
+- No realizar migraciones destructivas durante la promoción Canary.
+- Mantener compatibilidad con la versión Stable.
+- No eliminar columnas que todavía utiliza la versión anterior.
+- Conservar la posibilidad de rollback.
+- Verificar la compatibilidad de los datos antes de retirar elementos antiguos.
+
+**Estado de evidencia:** la estrategia de compatibilidad se documenta como diseño de la solución. Para afirmar que Expand/Contract fue comprobado, se deben adjuntar las migraciones y las pruebas que demuestren la compatibilidad simultánea de ambas versiones.
+
+---
+
+## 📁 Estructura del repositorio
+
+La estructura principal del proyecto está organizada de la siguiente manera:
+
+```text
+Api_Pet_Adoption/
+│
+├── .github/
+│   └── workflows/
+│       └── canary-deploy.yml
+│
+├── prisma/
+│   ├── migrations/
+│   ├── schema.prisma
+│   └── seed.js
+│
+├── scripts/
+│   ├── canary-promote.ps1
+│   ├── canary-quality-gate.ps1
+│   ├── canary-rollback.ps1
+│   ├── canary-load-test.ps1
+│   ├── canary-concurrent-test.ps1
+│   └── destroy-infra.ps1
+│
+├── tests/
+│   └── canary/
+│       ├── mock-bin/
+│       │   └── aws
+│       └── run-canary-tests.sh
+│
+├── src/
+│   ├── app.js
+│   ├── server.js
+│   ├── instrumentation.js
+│   ├── controllers/
+│   ├── middlewares/
+│   ├── repositories/
+│   ├── routes/
+│   ├── services/
+│   ├── v3/
+│   └── v4/
+│
+├── terraform/
+│   ├── alb.tf
+│   ├── cloudwatch.tf
+│   ├── dashboard.tf
+│   ├── ecr.tf
+│   ├── ecs.tf
+│   ├── network.tf
+│   ├── outputs.tf
+│   ├── providers.tf
+│   ├── rds.tf
+│   ├── secrets.tf
+│   ├── security_groups.tf
+│   ├── variables.tf
+│   └── versions.tf
+│
+├── monitoring/
+│
+├── Dockerfile
+├── docker-compose.yml
+├── package.json
+├── package-lock.json
+├── .env.example
+└── README.md
+```
+
+Los archivos de infraestructura, scripts y pruebas se mantienen versionados para facilitar la reproducción del despliegue y la auditoría de los cambios.
+
+---
+
+## 🔧 Configuración del entorno
+
+### Requisitos
+
+- Node.js.
+- npm.
+- Git.
+- Docker y Docker Compose para la ejecución local.
+- PowerShell para los scripts de automatización.
+- AWS CLI para consultar y administrar recursos.
+- Terraform para gestionar infraestructura.
+- Cuenta AWS con permisos adecuados.
+- Acceso al repositorio de GitHub.
+
+### Variables de entorno
+
+Crear un archivo `.env` a partir de `.env.example`.
+
+Variables principales:
+
+```env
+PORT=3000
+NODE_ENV=development
+DATABASE_URL=
+```
+
+La cadena de conexión debe apuntar a la base de datos correspondiente al entorno.
+
+No subir el archivo `.env` ni credenciales reales al repositorio.
+
+---
+
+## 💻 Ejecución local
+
+### 1. Clonar el repositorio
+
+```bash
+git clone https://github.com/AngelAvirama/Api_Pet_Adoption.git
+cd Api_Pet_Adoption
+```
+
+### 2. Instalar dependencias
+
+```bash
+npm install
+```
+
+### 3. Configurar variables de entorno
+
+```bash
+cp .env.example .env
+```
+
+En Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Completar `DATABASE_URL` con los datos de la base de datos local.
+
+### 4. Generar Prisma Client
+
+```bash
+npx prisma generate
+```
+
+### 5. Aplicar migraciones
+
+```bash
+npx prisma migrate deploy
+```
+
+### 6. Ejecutar el proyecto
+
+```bash
+npm run dev
+```
+
+La API utiliza el puerto configurado en `PORT`, con 3000 como puerto habitual de desarrollo.
+
+### 7. Verificar disponibilidad
+
+```http
+GET /api/health
+```
+
+Respuesta esperada:
+
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
+## 🧪 Ejecución de pruebas automatizadas
+
+### Pruebas del Quality Gate
+
+En Linux o GitHub Actions:
+
+```bash
+bash tests/canary/run-canary-tests.sh
+```
+
+Este comando ejecuta cuatro escenarios:
+
+| Prueba | Resultado esperado |
+|---|---|
+| PROMOTE | Código 0 |
+| HOLD | Código 1 |
+| ROLLBACK | Código 2 |
+| Rollback DryRun | Código 0 |
+
+El ejecutable simulado de AWS evita realizar modificaciones reales durante estas pruebas.
+
+### Pruebas de carga concurrente
+
+El script correspondiente es:
+
+```text
+scripts/canary-concurrent-test.ps1
+```
+
+Ejemplo:
+
+```powershell
+.\scripts\canary-concurrent-test.ps1 `
+  -Requests 1000 `
+  -Workers 20 `
+  -Mode Public
+```
+
+Los parámetros pueden variar según la configuración del script y el entorno de ejecución.
+
+### Validación de sintaxis
+
+Los scripts PowerShell pueden validarse desde PowerShell 7:
+
+```powershell
+$files = @(
+    "scripts/canary-promote.ps1",
+    "scripts/canary-quality-gate.ps1",
+    "scripts/canary-rollback.ps1",
+    "scripts/canary-concurrent-test.ps1"
+)
+
+foreach ($file in $files) {
+    $tokens = $null
+    $errors = $null
+
+    [System.Management.Automation.Language.Parser]::ParseFile(
+        (Resolve-Path $file),
+        [ref]$tokens,
+        [ref]$errors
+    ) | Out-Null
+
+    if ($errors.Count -gt 0) {
+        Write-Host "ERROR: $file"
+        $errors | ForEach-Object { Write-Host $_ }
+        exit 1
+    }
+
+    Write-Host "OK: $file"
+}
+```
+
+---
+
+## 🚀 Procedimiento de despliegue
+
+El proceso se realiza desde GitHub Actions.
+
+### 1. Abrir el workflow
+
+Ingresar al repositorio:
+
+```text
+GitHub → Actions → Canary - Controlled Promotion
+```
+
+### 2. Seleccionar la rama
+
+```text
+feature/canary-deployment-v4
+```
+
+### 3. Seleccionar la etapa
+
+Las etapas disponibles son:
+
+```text
+5
+25
+50
+100
+```
+
+Cada ejecución procesa una sola etapa.
+
+### 4. Seleccionar el modo
+
+**simulate**
+
+Ejecuta una simulación sin modificar los pesos reales del listener.
+
+**apply**
+
+Realiza la modificación real del listener y ejecuta las pruebas y validaciones.
+
+Para `apply`, introducir:
+
+```text
+PROMOVER
+```
+
+### 5. Revisar resultados
+
+Verificar:
+
+- Pruebas automatizadas aprobadas.
+- Autenticación AWS correcta.
+- Listener consultado correctamente.
+- Distribución de tráfico aplicada.
+- Prueba concurrente ejecutada.
+- Métricas de CloudWatch consultadas.
+- Quality Gate aprobado.
+- Artefactos CSV generados.
+
+### 6. Verificar el tráfico real
+
+Para consultar la distribución del listener:
+
+```powershell
+aws elbv2 describe-listeners `
+  --listener-arns "<LISTENER_ARN>" `
+  --region us-east-1 `
+  --query "Listeners[0].DefaultActions"
+```
+
+Para consultar los servicios ECS:
+
+```powershell
+aws ecs describe-services `
+  --cluster pet-adoption-demo-cluster `
+  --services pet-adoption-demo-api pet-adoption-demo-api-canary `
+  --region us-east-1 `
+  --query "services[*].[serviceName,desiredCount,runningCount,status]"
+```
+
+Estos comandos permiten comprobar que la distribución del tráfico y el estado de los servicios coinciden con la etapa ejecutada.
+
+---
+
+## 📈 Resultados obtenidos
+
+### 1. Pruebas concurrentes de tráfico público
+
+Se realizaron pruebas de 1.000 solicitudes por etapa.
+
+| Etapa | Stable | Canary | Solicitudes Stable | Solicitudes Canary | Errores |
+|---|---:|---:|---:|---:|---:|
+| 5 % | 95 % | 5 % | 944 | 56 | 0 |
+| 25 % | 75 % | 25 % | 755 | 245 | 0 |
+| 50 % | 50 % | 50 % | 525 | 475 | 0 |
+| 100 % | 0 % | 100 % | 0 | 1.000 | 0 |
+
+**Resumen:**
+
+- Solicitudes totales: 4.000.
+- Solicitudes con errores registrados: 0.
+- Etapas evaluadas: 4.
+- Distribución observada: coherente con los pesos configurados.
+
+### 2. Resultados de latencia
+
+Los resultados de las pruebas concurrentes registraron:
+
+| Etapa | Canary promedio | Canary p95 | Canary p99 |
+|---|---:|---:|---:|
+| 5 % | 255,54 ms | 346,09 ms | 393,18 ms |
+| 25 % | 284,98 ms | 409,66 ms | 526,64 ms |
+| 50 % | 310,82 ms | 290,06 ms | 482,32 ms |
+| 100 % | 250,58 ms | 276,60 ms | 303,59 ms |
+
+Los valores corresponden a los registros de las pruebas concurrentes y deben interpretarse como mediciones de cada ejecución, no como una serie de latencias acumuladas.
+
+### 3. Resultados de CloudWatch
+
+Durante las validaciones registradas se observaron:
+
+- Cero errores 4xx contabilizados en las ventanas reportadas.
+- Cero errores 5xx contabilizados en las ventanas reportadas.
+- Tasa de errores 5xx del 0 %.
+- Alarmas de CPU y memoria Canary en estado OK.
+- Latencias p95 reportadas inferiores a un segundo en las ventanas consultadas.
+
+Las métricas del balanceador y las mediciones del script concurrente corresponden a fuentes y ventanas de observación diferentes.
+
+### 4. Pruebas automatizadas del Quality Gate
+
+Se ejecutaron los cuatro escenarios aislados:
+
+| Escenario | Solicitudes | Errores 5xx | Tasa 5xx | Latencia p95 | Resultado |
+|---|---:|---:|---:|---:|---|
+| PROMOTE | 100 | 0 | 0 % | 0,200 s | Aprobado |
+| HOLD | 2 | 0 | 0 % | 0,200 s | Aprobado |
+| ROLLBACK | 105 | 5 | 4,76 % | 0,200 s | Aprobado |
+
+Resultados:
+
+```text
+Aprobadas: 4
+Fallidas: 0
+```
+
+La prueba ROLLBACK demuestra que una tasa de errores superior al 1 % genera la decisión de reversión.
+
+La prueba HOLD demuestra que una muestra inferior a 20 solicitudes no permite aprobar la promoción.
+
+La prueba Rollback DryRun comprobó que el script construye la configuración Stable 100 % / Canary 0 % sin ejecutar una modificación real de AWS.
+
+### 5. Validación de infraestructura
+
+Durante la verificación del 6 de noviembre de 2026 se obtuvo:
+
+| Servicio ECS | Deseadas | Ejecutándose | Estado |
+|---|---:|---:|---|
+| Stable | 1 | 1 | ACTIVE |
+| Canary | 1 | 1 | ACTIVE |
+
+La distribución pública verificada en esa revisión fue:
+
+```text
+Stable: 0 %
+Canary: 100 %
+```
+
+Ambos servicios permanecían activos.
+
+### 6. Ejecución real de GitHub Actions
+
+Se verificó una ejecución satisfactoria del workflow `Canary - Controlled Promotion`, incluyendo:
+
+- Job de pruebas automatizadas aprobado.
+- Job de etapa Canary aprobado.
+- Ejecución en modo `apply` reportada como funcional.
+
+La ejecución debe conservarse como evidencia mediante su enlace, sus logs y el artefacto CSV generado.
+
+**Importante:** el resultado de las pruebas aisladas no debe confundirse con una prueba real de rollback provocada por inyección de fallos. Esa evidencia debe registrarse de manera independiente.
+
+---
+
+## 🔒 Seguridad y buenas prácticas
+
+La implementación considera las siguientes prácticas:
+
+- Uso de OIDC para autenticación entre GitHub Actions y AWS.
+- Credenciales temporales en lugar de claves permanentes.
+- Permisos IAM limitados a las operaciones requeridas.
+- Separación de servicios Stable y Canary.
+- Protección de variables de entorno sensibles.
+- No almacenar archivos `.env` con credenciales reales en GitHub.
+- Mantener Stable activo durante el proceso de promoción.
+- Validar los cambios del listener antes de ejecutar una promoción real.
+- Conservar logs y artefactos de las pruebas.
+- Mantener la regla de acceso interno Canary independiente de la distribución pública.
+
+---
+
+## 📝 Conclusiones
+
+La implementación de Canary Deployment en Pet Adoption API permite introducir nuevas versiones de manera progresiva y controlada sobre AWS.
+
+La infraestructura mantiene dos servicios ECS activos simultáneamente y utiliza Application Load Balancer para distribuir el tráfico según los porcentajes definidos.
+
+GitHub Actions automatiza el proceso de promoción y utiliza OIDC para autenticarse de manera segura en AWS.
+
+Amazon CloudWatch proporciona las métricas de monitoreo utilizadas por el Quality Gate para evaluar errores, latencia y saturación de recursos.
+
+Las pruebas concurrentes realizadas en las etapas 5 %, 25 %, 50 % y 100 % procesaron un total de 4.000 solicitudes sin errores registrados.
+
+Las pruebas automatizadas validaron correctamente los escenarios PROMOTE, HOLD y ROLLBACK, además de la configuración de recuperación mediante DryRun.
+
+La solución proporciona una base para realizar despliegues progresivos, reducir el riesgo de introducir regresiones y mantener una alternativa de recuperación mediante la versión Stable.
+
+---
+
+## 📚 Evidencias para la entrega
+
+Para complementar este README, se recomienda conservar en el repositorio o en la documentación de entrega:
+
+1. Diagrama de arquitectura AWS.
+2. Captura del listener mostrando la distribución Stable/Canary.
+3. Captura de los dos servicios ECS en estado activo.
+4. Dashboard CloudWatch con comparación de métricas.
+5. Logs de las pruebas concurrentes.
+6. Resultados de las cuatro pruebas automatizadas.
+7. Ejecución satisfactoria de GitHub Actions en modo `apply`.
+8. CSV de la prueba de carga.
+9. Evidencia de inyección de fallos y rollback real.
+10. Evidencia de compatibilidad de datos Expand/Contract.
+11. Identificación de versiones y digest de las imágenes desplegadas.
+
+---
+
+## 👨‍💻 Autoría
+
+**Proyecto:** Pet Adoption API  
+**Repositorio:** [AngelAvirama/Api_Pet_Adoption](https://github.com/AngelAvirama/Api_Pet_Adoption)  
+**Cloud Provider:** Amazon Web Services  
+**Región:** us-east-1  
+**Estrategia:** Canary Deployment  
+**Automatización:** GitHub Actions + AWS OIDC  
+**Infraestructura como código:** Terraform
+
