@@ -14,6 +14,7 @@
 locals {
   endurecido   = var.security_hardening_enabled ? 1 : 0
   deteccion_sg = jsondecode(file("${path.module}/../chaos/security/detecciones/01-sg-ingreso-publico.json"))
+  deteccion_ad = jsondecode(file("${path.module}/../chaos/security/detecciones/02-acceso-directo-sin-alb.json"))
   lambda_name  = "${var.project_name}-${var.environment}-revocar-ingreso-publico"
 }
 
@@ -136,6 +137,38 @@ resource "aws_sns_topic_subscription" "seguridad_email" {
   topic_arn = aws_sns_topic.seguridad[0].arn
   protocol  = "email"
   endpoint  = var.alert_email
+}
+
+# --- Detection in the workload layer: request that skipped the ALB ----------
+
+resource "aws_cloudwatch_log_metric_filter" "acceso_directo" {
+  count          = local.endurecido
+  name           = "${var.project_name}-${var.environment}-acceso-directo-sin-alb"
+  log_group_name = aws_cloudwatch_log_group.api.name
+  pattern        = local.deteccion_ad.filtro_cloudwatch
+
+  metric_transformation {
+    name          = "AccesoDirectoSinAlb"
+    namespace     = "PetAdoption/Seguridad"
+    value         = "1"
+    default_value = "0"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "acceso_directo" {
+  count               = local.endurecido
+  alarm_name          = "${var.project_name}-${var.environment}-seguridad-acceso-directo-sin-alb"
+  alarm_description   = local.deteccion_ad.titulo
+  namespace           = "PetAdoption/Seguridad"
+  metric_name         = "AccesoDirectoSinAlb"
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 1
+  threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.seguridad[0].arn]
+  ok_actions          = [aws_sns_topic.seguridad[0].arn]
 }
 
 # --- Containment: Lambda with least privilege --------------------------------

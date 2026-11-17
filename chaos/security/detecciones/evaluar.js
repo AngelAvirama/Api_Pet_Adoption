@@ -24,9 +24,27 @@ const coincide = (patron, evento) => Object.entries(patron).every(([clave, esper
   return valor === esperado;
 });
 
+// Subset of the CloudWatch Logs JSON filter pattern language used by the
+// rules: { $.campo = "valor" } and { $.campo != "valor" }, joined with &&.
+const compilarFiltroCloudWatch = (filtro) => {
+  const cuerpo = filtro.trim().replace(/^\{/, '').replace(/\}$/, '');
+  const condiciones = cuerpo.split('&&').map((parte) => {
+    const m = /^\s*\$\.([A-Za-z0-9_.]+)\s*(=|!=)\s*"([^"]*)"\s*$/.exec(parte);
+    if (!m) throw new Error(`Filtro de CloudWatch no soportado: ${parte}`);
+    const [, ruta, op, valor] = m;
+    return (entrada) => {
+      const actual = ruta.split('.').reduce((acc, k) => (acc && typeof acc === 'object' ? acc[k] : undefined), entrada);
+      return op === '=' ? actual === valor : actual !== valor;
+    };
+  });
+  return (entrada) => condiciones.every((c) => c(entrada));
+};
+
 const evaluarRegla = (regla) => {
-  const dispara = (entrada) => coincide(regla.patron_eventbridge, entrada)
-    && decidir(entrada, regla.grupos_protegidos).exposicion;
+  const dispara = regla.filtro_cloudwatch
+    ? compilarFiltroCloudWatch(regla.filtro_cloudwatch)
+    : (entrada) => coincide(regla.patron_eventbridge, entrada)
+      && decidir(entrada, regla.grupos_protegidos).exposicion;
   const positivos = regla.casos.positivos.map((c) => ({ nombre: c.nombre, dispara: dispara(c.entrada) }));
   const negativos = regla.casos.negativos.map((c) => ({ nombre: c.nombre, dispara: dispara(c.entrada) }));
   return {
@@ -51,4 +69,4 @@ if (require.main === module) {
   if (!resultados.every((r) => r.ok)) process.exitCode = 1;
 }
 
-module.exports = { coincide, evaluarRegla, cargarReglas };
+module.exports = { coincide, compilarFiltroCloudWatch, evaluarRegla, cargarReglas };

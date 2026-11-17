@@ -4,7 +4,7 @@ const { cargarReglas } = require('../chaos/security/detecciones/evaluar');
 class RevokeSecurityGroupIngressCommand { constructor(input) { this.input = input; this.tipo = 'revoke'; } }
 class PublishCommand { constructor(input) { this.input = input; this.tipo = 'publish'; } }
 
-const regla = cargarReglas()[0];
+const regla = cargarReglas().find((r) => r.patron_eventbridge);
 const positivo = regla.casos.positivos[0].entrada;
 const negativo = regla.casos.negativos[0].entrada;
 

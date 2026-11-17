@@ -1,4 +1,4 @@
-const { coincide, evaluarRegla, cargarReglas } = require('../chaos/security/detecciones/evaluar');
+const { coincide, compilarFiltroCloudWatch, evaluarRegla, cargarReglas } = require('../chaos/security/detecciones/evaluar');
 const { decidir } = require('../security/lambda/revocar-ingreso-publico/decidir');
 
 describe('detection as code (experiment 2)', () => {
@@ -19,8 +19,15 @@ describe('detection as code (experiment 2)', () => {
     expect(coincide({ a: 'x' }, undefined)).toBe(false);
   });
 
+  test('the CloudWatch filter subset supports = , != and &&', () => {
+    const f = compilarFiltroCloudWatch('{ $.evento = "x" && $.nivel.tipo != "y" }');
+    expect(f({ evento: 'x', nivel: { tipo: 'z' } })).toBe(true);
+    expect(f({ evento: 'x', nivel: { tipo: 'y' } })).toBe(false);
+    expect(() => compilarFiltroCloudWatch('{ $.a > 3 }')).toThrow(/no soportado/);
+  });
+
   test('the decision extracts the rule to revoke and who opened it', () => {
-    const [regla] = cargarReglas();
+    const regla = cargarReglas().find((r) => r.patron_eventbridge);
     const decision = decidir(regla.casos.positivos[0].entrada, regla.grupos_protegidos);
     expect(decision).toMatchObject({
       exposicion: true,

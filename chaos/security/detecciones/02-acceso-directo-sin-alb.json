@@ -1,0 +1,40 @@
+{
+  "id": "seguridad_acceso_directo_sin_alb",
+  "titulo": "Peticion que llego a un task de ECS sin pasar por el ALB (ruta no declarada)",
+  "capa": "red / carga de trabajo",
+  "propietario": "Angel",
+  "experimento": 2,
+  "fuente": "Logs del contenedor en CloudWatch Logs (/ecs/pet-adoption-demo), evento acceso_directo_sin_alb que escribe src/middlewares/origin.middleware.js con el traceId",
+  "attack": ["T1562.007 Impair Defenses: Disable or Modify Cloud Firewall", "T1190 Exploit Public-Facing Application (via expuesta)"],
+  "d3fend": ["D3-NTA Network Traffic Analysis", "D3-ITF Inbound Traffic Filtering"],
+  "severidad": "HIGH",
+  "umbral": "mas de 0 eventos en 1 minuto",
+  "terraform": "aws_cloudwatch_log_metric_filter.acceso_directo + aws_cloudwatch_metric_alarm.acceso_directo (terraform/seguridad.tf)",
+  "filtro_cloudwatch": "{ $.evento = \"acceso_directo_sin_alb\" }",
+  "casos": {
+    "positivos": [
+      {
+        "nombre": "sonda externa al puerto 3000 del task (experimento)",
+        "entrada": { "level": "warn", "traceId": "exp2-r1-ecs-abc", "message": "Request reached the task without the load balancer", "evento": "acceso_directo_sin_alb", "route": "/api/v2/animals/random", "ip": "::ffff:3.41.210.69", "agente": "exp2-sonda-externa" }
+      },
+      {
+        "nombre": "escaner de internet sin agente contra el interruptor de caos",
+        "entrada": { "level": "warn", "traceId": "5f0c", "evento": "acceso_directo_sin_alb", "route": "/internal/chaos", "ip": "::ffff:45.1.2.3", "agente": null }
+      }
+    ],
+    "negativos": [
+      {
+        "nombre": "peticion normal del coordinador a traves del ALB",
+        "entrada": { "level": "info", "traceId": "k6-r1-3-10-x", "message": "HTTP request completed", "route": "/api/v2/animals/random", "statusCode": 200, "viaAlb": true }
+      },
+      {
+        "nombre": "health check del ALB",
+        "entrada": { "level": "info", "message": "HTTP request completed", "route": "/api/health", "statusCode": 200, "viaAlb": true }
+      },
+      {
+        "nombre": "metrica EMF del canary (otra linea JSON del mismo log)",
+        "entrada": { "_aws": { "Timestamp": 1 }, "AppVersion": "v4", "AnimalRecommendationRequests": 1 }
+      }
+    ]
+  }
+}
