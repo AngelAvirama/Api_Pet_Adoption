@@ -71,26 +71,32 @@ jobs:
         run: node chaos/security/detecciones/evaluar.js
 
       - name: Estado estable de seguridad
+        timeout-minutes: 5
         run: node chaos/security/exp2-exposicion/ejecutar.js estado-estable
 
       - name: Caso ECS - puerto de la app abierto a Internet
+        timeout-minutes: 14
         run: |
           node chaos/security/exp2-exposicion/ejecutar.js abrir --caso ecs
           node chaos/security/exp2-exposicion/ejecutar.js vigilar --caso ecs --max "${{ inputs.vigilancia_segundos }}"
 
       - name: Caso RDS - puerto de la base de datos abierto a Internet
+        timeout-minutes: 14
         run: |
           node chaos/security/exp2-exposicion/ejecutar.js abrir --caso rds
           node chaos/security/exp2-exposicion/ejecutar.js vigilar --caso rds --max "${{ inputs.vigilancia_segundos }}"
 
       - name: Caso salida - conexion a un puerto no permitido
+        timeout-minutes: 12
         run: node chaos/security/exp2-exposicion/ejecutar.js salida
 
       - name: Reversion (siempre)
+        timeout-minutes: 5
         if: always()
         run: node chaos/security/exp2-exposicion/ejecutar.js revertir
 
       - name: Medicion (esperando la ingesta de los logs)
+        timeout-minutes: 6
         if: always()
         run: |
           sleep 90

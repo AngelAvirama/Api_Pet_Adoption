@@ -9,6 +9,7 @@ const RESULTS_DIR = process.env.SEC_RESULTS_DIR || path.join(__dirname, 'results
 const STOP_FILE = path.join(RESULTS_DIR, 'STOP');
 const REGION = process.env.AWS_REGION || 'us-east-1';
 const PREFIJO = process.env.SEC_PREFIJO || 'pet-adoption-demo';
+const AWS_TIMEOUT_MS = Number(process.env.SEC_AWS_TIMEOUT_MS || 60000);
 
 const ahora = () => new Date().toISOString();
 
@@ -69,11 +70,15 @@ const aws = (args, { json = true, allowFail = false } = {}) => {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       maxBuffer: 64 * 1024 * 1024,
-      shell: win
+      shell: win,
+      // A hung CLI call must never keep a security group open: fail instead
+      timeout: AWS_TIMEOUT_MS
     });
     return json ? JSON.parse(out || 'null') : out;
   } catch (error) {
-    const detalle = (error.stderr || error.message || '').toString().trim().split('\n').slice(-2).join(' ');
+    const detalle = error.code === 'ETIMEDOUT' || error.signal === 'SIGTERM'
+      ? `sin respuesta en ${AWS_TIMEOUT_MS} ms`
+      : (error.stderr || error.message || '').toString().trim().split('\n').slice(-2).join(' ');
     if (allowFail) {
       return { error: detalle };
     }

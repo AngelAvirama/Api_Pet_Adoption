@@ -68,9 +68,12 @@ const accesoDirecto = async (ip, caso) => {
   const traceId = `exp2-r${RONDA}-${caso}-${Date.now().toString(36)}`;
   try {
     const res = await fetch(`http://${ip}:3000/api/v2/animals/random`, {
-      headers: { 'x-trace-id': traceId, 'user-agent': 'exp2-sonda-externa' },
+      headers: { 'x-trace-id': traceId, 'user-agent': 'exp2-sonda-externa', connection: 'close' },
       signal: AbortSignal.timeout(5000)
     });
+    // Read the body inside the same timeout: an unread body keeps the socket
+    // busy and, probe after probe, can leave the loop waiting forever
+    await res.arrayBuffer();
     return { ip, traceId, alcanzable: true, status: res.status };
   } catch (error) {
     return { ip, traceId, alcanzable: false, error: error.name };
