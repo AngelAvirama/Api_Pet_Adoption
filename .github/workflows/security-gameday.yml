@@ -1,0 +1,116 @@
+name: Security game day - Experimento 2 (exposicion y segmentacion)
+
+# Experiment 2 of the security game day (defense in depth, network layer,
+# AWS). Opens undeclared routes (public ingress on the ECS and RDS security
+# groups) and an unfiltered egress probe, then measures whether the controls
+# detect them (MTTD) and contain them (MTTC). Same method in both rounds; the
+# round is the infrastructure deployed with security_hardening=false/true.
+#
+# Rules of engagement: manual only, inside the agreed window, only on the
+# group's own AWS account and resources tagged by the experiment. The
+# rollback always runs (if: always()) and fails the job if anything is left.
+on:
+  workflow_dispatch:
+    inputs:
+      ventana_autorizada:
+        description: "Confirmo que estamos en la ventana acordada con el grupo y que la cuenta AWS es nuestra"
+        type: boolean
+        default: false
+      ronda:
+        description: "Ronda (debe coincidir con security_hardening desplegado: 0=false, 1=true)"
+        type: choice
+        options: ["0", "1"]
+        default: "0"
+      vigilancia_segundos:
+        description: "Tiempo maximo de observacion por cada apertura (el mismo en las dos rondas)"
+        default: "600"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: security-gameday
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  RONDA: ${{ inputs.ronda }}
+  SEC_RESULTS_DIR: chaos/security/results
+
+jobs:
+  experimento-2:
+    name: Exposicion y segmentacion (ronda ${{ inputs.ronda }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Ventana autorizada
+        if: ${{ inputs.ventana_autorizada != true }}
+        run: |
+          echo "::error::El game day solo corre dentro de una ventana acordada. Marque ventana_autorizada."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Configure AWS credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::296121913016:role/github-actions-pet-adoption
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: SecurityGameDayExp2
+
+      - name: Ventana de ejecucion (50 minutos desde ahora)
+        run: |
+          echo "CHAOS_WINDOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)/$(date -u -d '+50 minutes' +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+
+      - name: Deteccion como codigo (positivos disparan, negativos callan)
+        run: node chaos/security/detecciones/evaluar.js
+
+      - name: Estado estable de seguridad
+        run: node chaos/security/exp2-exposicion/ejecutar.js estado-estable
+
+      - name: Caso ECS - puerto de la app abierto a Internet
+        run: |
+          node chaos/security/exp2-exposicion/ejecutar.js abrir --caso ecs
+          node chaos/security/exp2-exposicion/ejecutar.js vigilar --caso ecs --max "${{ inputs.vigilancia_segundos }}"
+
+      - name: Caso RDS - puerto de la base de datos abierto a Internet
+        run: |
+          node chaos/security/exp2-exposicion/ejecutar.js abrir --caso rds
+          node chaos/security/exp2-exposicion/ejecutar.js vigilar --caso rds --max "${{ inputs.vigilancia_segundos }}"
+
+      - name: Caso salida - conexion a un puerto no permitido
+        run: node chaos/security/exp2-exposicion/ejecutar.js salida
+
+      - name: Reversion (siempre)
+        if: always()
+        run: node chaos/security/exp2-exposicion/ejecutar.js revertir
+
+      - name: Medicion (esperando la ingesta de los logs)
+        if: always()
+        run: |
+          sleep 90
+          node chaos/security/exp2-exposicion/ejecutar.js medir
+          node chaos/security/exp2-exposicion/ejecutar.js informe
+
+      - name: Resumen
+        if: always()
+        run: |
+          {
+            echo "## Game day experimento 2, ronda $RONDA"
+            echo '```json'
+            node -e "const r=require('./chaos/security/results/exp2-ronda-${RONDA}.json');console.log(JSON.stringify({resumen:r.resumen,reversion:r.reversion},null,2))" || echo "sin resultados"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Guardar evidencia
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-exp2-ronda-${{ inputs.ronda }}-${{ github.run_number }}
+          path: chaos/security/results/*.json
+          if-no-files-found: warn
