@@ -25,6 +25,7 @@ const CLUSTER = `${P}-cluster`;
 const SERVICIO = `${P}-api`;
 const LOG_ALERTAS = `/aws/lambda/${P}-revocar-ingreso-publico`;
 const LOG_APP = `/ecs/${P}`;
+const ALARMA_APP = `${P}-seguridad-acceso-directo-sin-alb`;
 const ARCHIVO = `exp2-ronda-${RONDA}.json`;
 
 const cargar = () => comun.leerResultado(ARCHIVO) || { experimento: 2, ronda: RONDA, bitacora: [] };
@@ -105,6 +106,7 @@ const comandos = {
     const trails = comun.aws(['cloudtrail', 'describe-trails'], { allowFail: true });
     const reglaAlerta = comun.aws(['events', 'describe-rule', '--name', `${P}-seguridad-sg-publico`], { allowFail: true });
     const remediacion = comun.aws(['lambda', 'get-function', '--function-name', `${P}-revocar-ingreso-publico`], { allowFail: true });
+    const alarma = comun.aws(['cloudwatch', 'describe-alarms', '--alarm-names', ALARMA_APP], { allowFail: true });
     const unaHoraAtras = new Date(Date.now() - 3600 * 1000).toISOString();
     const alertasPrevias = eventosDeLog(LOG_ALERTAS, unaHoraAtras, '"exposicion_detectada"');
 
@@ -121,6 +123,7 @@ const comandos = {
         cloudtrail_trail: Boolean(trails && !trails.error && trails.trailList && trails.trailList.length),
         alerta_eventbridge: Boolean(reglaAlerta && !reglaAlerta.error && reglaAlerta.State === 'ENABLED'),
         remediacion_lambda: Boolean(remediacion && !remediacion.error),
+        alarma_senal_app: Boolean(alarma && !alarma.error && alarma.MetricAlarms && alarma.MetricAlarms.length),
         senal_app_acceso_directo: true
       },
       alertas_sin_condicion_adversa: alertasPrevias.length
@@ -232,7 +235,7 @@ const comandos = {
   // app log of the direct access (second layer, correlated by trace id).
   async medir() {
     const datos = cargar();
-    datos.mediciones = { t: comun.ahora(), cloudtrail: {}, alertas: {}, app: {} };
+    datos.mediciones = { t: comun.ahora(), cloudtrail: {}, alertas: {}, app: {}, alarmas_app: {} };
 
     (datos.aperturas || []).forEach((apertura) => {
       const ct = comun.aws([
@@ -250,6 +253,19 @@ const comandos = {
         const app = eventosDeLog(LOG_APP, apertura.t, '"acceso_directo_sin_alb"')
           .filter((e) => e.message.includes(`exp2-r${RONDA}-`));
         const primeraApp = app.sort((a, b) => a.ingestionTime - b.ingestionTime)[0];
+        // Alert on the app signal: first transition of the CloudWatch alarm to
+        // ALARM after the rule was opened
+        const historia = comun.aws([
+          'cloudwatch', 'describe-alarm-history', '--alarm-name', ALARMA_APP, '--history-item-type', 'StateUpdate',
+          '--start-date', new Date(new Date(apertura.t).getTime() - 60000).toISOString()
+        ], { allowFail: true });
+        const aAlarma = ((historia && historia.AlarmHistoryItems) || [])
+          .filter((h) => /to ALARM/.test(h.HistorySummary || ''))
+          .map((h) => new Date(h.Timestamp).toISOString())
+          .filter((t) => t >= apertura.t)
+          .sort()[0];
+        datos.mediciones.alarmas_app.ecs = aAlarma ? { t: aAlarma } : null;
+
         datos.mediciones.app.ecs = primeraApp ? {
           t: new Date(primeraApp.ingestionTime).toISOString(),
           total: app.length,
@@ -258,7 +274,7 @@ const comandos = {
       }
     });
 
-    anotar(datos, 'medicion', { alertas: datos.mediciones.alertas, app: Boolean(datos.mediciones.app.ecs) });
+    anotar(datos, 'medicion', { alertas: datos.mediciones.alertas, alarmas_app: datos.mediciones.alarmas_app, senal_app: Boolean(datos.mediciones.app.ecs) });
     guardar(datos);
   },
 

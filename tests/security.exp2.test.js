@@ -41,22 +41,30 @@ describe('experiment 2: exposure and segmentation', () => {
     expect(() => reglas.permisoAdverso('salida', '0')).toThrow();
   });
 
-  test('round 0: exposed, not detected, not contained', () => {
+  test('round 0: exposed, signals recorded but nobody alerted, not contained', () => {
     const resumen = reglas.resumir({
       estado_estable: { alertas_sin_condicion_adversa: 0 },
       aperturas: [{ caso: 'ecs', t: '2026-11-17T10:00:00Z' }],
       vigilancia: { ecs: { alcanzable: true, contenida_por_control: false } },
-      mediciones: { alertas: {}, app: {} },
+      mediciones: {
+        cloudtrail: { ecs: { t: '2026-11-17T10:00:01Z' } },
+        app: { ecs: { t: '2026-11-17T10:00:06Z' } },
+        alertas: {},
+        alarmas_app: {}
+      },
       salida: { t: '2026-11-17T10:10:00Z', prohibido_conecta: true }
     });
 
+    expect(resumen.senal_registrada).toBe('1/2');
     expect(resumen.cobertura_deteccion).toBe('0/2');
     expect(resumen.contencion).toBe('0/2');
-    expect(resumen.tecnicas[0]).toMatchObject({ expuesto: true, detectado: false, mttd_s: null, mttc_s: null });
+    expect(resumen.tecnicas[0]).toMatchObject({
+      expuesto: true, senales: ['cloudtrail', 'log_app'], t_senal_s: 1, detectado: false, mttd_s: null, mttc_s: null
+    });
     expect(resumen.falsos_positivos).toBe(0);
   });
 
-  test('round 1: detected by the alert and the app, contained by the control', () => {
+  test('round 1: alerted by EventBridge and the app alarm, contained by the control', () => {
     const resumen = reglas.resumir({
       aperturas: [
         { caso: 'ecs', t: '2026-11-17T10:00:00Z' },
@@ -68,14 +76,14 @@ describe('experiment 2: exposure and segmentation', () => {
       },
       mediciones: {
         alertas: { ecs: { t: '2026-11-17T10:01:05Z' }, rds: { t: '2026-11-17T10:06:00Z' } },
-        app: { ecs: { t: '2026-11-17T10:00:20Z' } }
+        alarmas_app: { ecs: { t: '2026-11-17T10:00:50Z' } }
       },
       salida: { t: '2026-11-17T10:10:00Z', prohibido_conecta: false }
     });
 
     expect(resumen.cobertura_deteccion).toBe('2/3');
     expect(resumen.contencion).toBe('3/3');
-    expect(resumen.tecnicas[0]).toMatchObject({ detectado_por: ['eventbridge', 'app'], mttd_s: 20, mttc_s: 90 });
+    expect(resumen.tecnicas[0]).toMatchObject({ detectado_por: ['eventbridge', 'alarma_app'], mttd_s: 50, mttc_s: 90 });
     expect(resumen.tecnicas[1]).toMatchObject({ mttd_s: 60, mttc_s: 70 });
     expect(resumen.tecnicas[2]).toMatchObject({ contenido: true, detectado: false });
     expect(reglas.resumir({}).cobertura_deteccion).toBe('0/0');

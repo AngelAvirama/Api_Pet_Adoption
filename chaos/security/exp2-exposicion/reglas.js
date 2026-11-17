@@ -85,17 +85,23 @@ const segundos = (desde, hasta) => (desde && hasta
   ? Math.round((new Date(hasta) - new Date(desde)) / 100) / 10
   : null);
 
-// Summary of a round: per emulated technique, whether a control detected it
-// (MTTD), whether a control contained it (MTTC) and the false positives seen
-// while there was no adverse condition.
+// Summary of a round. A record that nobody reads is not a detection: the
+// CloudTrail event and the app log are SIGNALS; only an alert that reaches
+// someone (the EventBridge rule handled by the Lambda, or the CloudWatch
+// alarm on the app signal) counts as DETECTION (MTTD). Containment (MTTC)
+// only counts when a control, not the experiment, removed the rule.
 const resumir = (ronda) => {
   const tecnicas = [];
+  const mediciones = ronda.mediciones || {};
 
   (ronda.aperturas || []).forEach((apertura) => {
     const vigilancia = (ronda.vigilancia || {})[apertura.caso] || {};
-    const alerta = (ronda.mediciones?.alertas || {})[apertura.caso] || null;
-    const app = (ronda.mediciones?.app || {})[apertura.caso] || null;
-    const deteccion = [alerta?.t, app?.t].filter(Boolean).sort()[0] || null;
+    const alerta = (mediciones.alertas || {})[apertura.caso] || null;
+    const alarma = (mediciones.alarmas_app || {})[apertura.caso] || null;
+    const trail = (mediciones.cloudtrail || {})[apertura.caso] || null;
+    const app = (mediciones.app || {})[apertura.caso] || null;
+    const deteccion = [alerta?.t, alarma?.t].filter(Boolean).sort()[0] || null;
+    const senal = [trail?.t, app?.t].filter(Boolean).sort()[0] || null;
     const contencion = vigilancia.contenida_por_control ? vigilancia.t_regla_retirada : null;
 
     tecnicas.push({
@@ -103,8 +109,11 @@ const resumir = (ronda) => {
       attack: CASOS[apertura.caso].attack,
       t_inicio: apertura.t,
       expuesto: vigilancia.alcanzable ?? null,
+      senal_registrada: Boolean(senal),
+      senales: [trail && 'cloudtrail', app && 'log_app'].filter(Boolean),
+      t_senal_s: segundos(apertura.t, senal),
       detectado: Boolean(deteccion),
-      detectado_por: [alerta && 'eventbridge', app && 'app'].filter(Boolean),
+      detectado_por: [alerta && 'eventbridge', alarma && 'alarma_app'].filter(Boolean),
       mttd_s: segundos(apertura.t, deteccion),
       contenido: Boolean(contencion),
       mttc_s: segundos(apertura.t, contencion)
@@ -112,29 +121,34 @@ const resumir = (ronda) => {
   });
 
   if (ronda.salida) {
+    const bloqueada = ronda.salida.prohibido_conecta === false;
     tecnicas.push({
       caso: 'salida',
       attack: CASOS.salida.attack,
       t_inicio: ronda.salida.t,
       expuesto: ronda.salida.prohibido_conecta,
+      senal_registrada: false,
+      senales: [],
+      t_senal_s: null,
       detectado: false,
       detectado_por: [],
       mttd_s: null,
-      contenido: ronda.salida.prohibido_conecta === false,
-      mttc_s: ronda.salida.prohibido_conecta === false ? 0 : null,
+      contenido: bloqueada,
+      mttc_s: bloqueada ? 0 : null,
       nota: 'prevencion por filtrado de salida; no hay deteccion (requiere VPC Flow Logs)'
     });
   }
 
   const detectadas = tecnicas.filter((t) => t.detectado).length;
   const contenidas = tecnicas.filter((t) => t.contenido).length;
-  const falsosPositivos = ronda.estado_estable?.alertas_sin_condicion_adversa ?? null;
+  const conSenal = tecnicas.filter((t) => t.senal_registrada).length;
 
   return {
     tecnicas,
+    senal_registrada: tecnicas.length ? `${conSenal}/${tecnicas.length}` : '0/0',
     cobertura_deteccion: tecnicas.length ? `${detectadas}/${tecnicas.length}` : '0/0',
     contencion: tecnicas.length ? `${contenidas}/${tecnicas.length}` : '0/0',
-    falsos_positivos: falsosPositivos
+    falsos_positivos: ronda.estado_estable?.alertas_sin_condicion_adversa ?? null
   };
 };
 
