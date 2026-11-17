@@ -1,0 +1,423 @@
+{
+  "experimento": 2,
+  "ronda": "1",
+  "bitacora": [
+    {
+      "t": "2026-11-17T14:56:54.440Z",
+      "evento": "estado_estable",
+      "inesperadas": 0,
+      "salida_sin_filtrar": [],
+      "cobertura": {
+        "cloudtrail_trail": true,
+        "alerta_eventbridge": true,
+        "remediacion_lambda": true,
+        "alarma_senal_app": true,
+        "senal_app_acceso_directo": true
+      }
+    },
+    {
+      "t": "2026-11-17T14:57:00.585Z",
+      "evento": "condicion_adversa_inicio",
+      "caso": "ecs",
+      "grupo": "sg-017511f6c6a0001d8",
+      "attack": "T1562.007 Impair Defenses: Disable or Modify Cloud Firewall"
+    },
+    {
+      "t": "2026-11-17T14:57:01.872Z",
+      "evento": "regla_permisiva_creada",
+      "caso": "ecs",
+      "regla": "sgr-0cd0b05deeb6a220b"
+    },
+    {
+      "t": "2026-11-17T14:57:21.682Z",
+      "evento": "contenida_por_control",
+      "caso": "ecs",
+      "t_regla_retirada": "2026-11-17T14:57:21.681Z"
+    },
+    {
+      "t": "2026-11-17T14:57:28.365Z",
+      "evento": "condicion_adversa_inicio",
+      "caso": "rds",
+      "grupo": "sg-04a6ef2ae25c1dbb7",
+      "attack": "T1562.007 Impair Defenses: Disable or Modify Cloud Firewall"
+    },
+    {
+      "t": "2026-11-17T14:57:29.645Z",
+      "evento": "regla_permisiva_creada",
+      "caso": "rds",
+      "regla": "sgr-0d0f5de6f90d9f54c"
+    },
+    {
+      "t": "2026-11-17T14:57:41.507Z",
+      "evento": "contenida_por_control",
+      "caso": "rds",
+      "t_regla_retirada": "2026-11-17T14:57:41.507Z"
+    },
+    {
+      "t": "2026-11-17T14:57:42.426Z",
+      "evento": "prueba_salida_inicio",
+      "attack": "T1048 Exfiltration Over Alternative Protocol"
+    },
+    {
+      "t": "2026-11-17T14:57:42.426Z",
+      "evento": "prueba_salida_fin",
+      "tarea": "arn:aws:ecs:us-east-1:296121913016:task/pet-adoption-demo-cluster/bfe5f68cc95d4b28950ab904391a127e",
+      "exit_code": 2,
+      "prohibido_conecta": false,
+      "permitido_conecta": true
+    },
+    {
+      "t": "2026-11-17T14:58:52.589Z",
+      "evento": "reversion",
+      "retiradas_por_el_experimento": [],
+      "restantes": [],
+      "acceso_directo_bloqueado": true,
+      "verificada": true
+    },
+    {
+      "t": "2026-11-17T15:00:34.948Z",
+      "evento": "medicion",
+      "alertas": {
+        "ecs": {
+          "t": "2026-11-17T14:57:13.616Z",
+          "total": 1
+        },
+        "rds": {
+          "t": "2026-11-17T14:57:42.553Z",
+          "total": 1
+        }
+      },
+      "alarmas_app": {
+        "ecs": {
+          "t": "2026-11-17T14:58:04.139Z"
+        }
+      },
+      "senal_app": true
+    }
+  ],
+  "estado_estable": {
+    "t": "2026-11-17T14:56:54.440Z",
+    "ventana": {
+      "activa": true,
+      "inicio": "2026-11-17T14:56:39.000Z",
+      "fin": "2026-11-17T15:46:39.000Z",
+      "motivo": "dentro de la ventana acordada"
+    },
+    "grupos": {
+      "rds": "sg-04a6ef2ae25c1dbb7",
+      "ecs": "sg-017511f6c6a0001d8",
+      "alb": "sg-03dd43001e7c0ee82"
+    },
+    "reglas": [
+      {
+        "id": "sgr-0ac49aecc9894371c",
+        "grupo": "sg-017511f6c6a0001d8",
+        "salida": true,
+        "protocolo": "tcp",
+        "desde": 5432,
+        "hasta": 5432,
+        "cidr": "10.20.11.0/24",
+        "origen": null,
+        "descripcion": "PostgreSQL only to the database subnets"
+      },
+      {
+        "id": "sgr-03884538722bd465e",
+        "grupo": "sg-03dd43001e7c0ee82",
+        "salida": false,
+        "protocolo": "tcp",
+        "desde": 80,
+        "hasta": 80,
+        "cidr": "0.0.0.0/0",
+        "origen": null,
+        "descripcion": "HTTP"
+      },
+      {
+        "id": "sgr-0c8ef843136490a72",
+        "grupo": "sg-017511f6c6a0001d8",
+        "salida": true,
+        "protocolo": "tcp",
+        "desde": 443,
+        "hasta": 443,
+        "cidr": "0.0.0.0/0",
+        "origen": null,
+        "descripcion": "HTTPS to AWS APIs and Grafana Cloud"
+      },
+      {
+        "id": "sgr-060db43e28e098ed6",
+        "grupo": "sg-04a6ef2ae25c1dbb7",
+        "salida": false,
+        "protocolo": "tcp",
+        "desde": 5432,
+        "hasta": 5432,
+        "cidr": null,
+        "origen": "sg-017511f6c6a0001d8",
+        "descripcion": "PostgreSQL from ECS"
+      },
+      {
+        "id": "sgr-052add95c7d4bc88e",
+        "grupo": "sg-017511f6c6a0001d8",
+        "salida": true,
+        "protocolo": "tcp",
+        "desde": 5432,
+        "hasta": 5432,
+        "cidr": "10.20.10.0/24",
+        "origen": null,
+        "descripcion": "PostgreSQL only to the database subnets"
+      },
+      {
+        "id": "sgr-033da2b06c0fe13d3",
+        "grupo": "sg-03dd43001e7c0ee82",
+        "salida": true,
+        "protocolo": "tcp",
+        "desde": 3000,
+        "hasta": 3000,
+        "cidr": "10.20.1.0/24",
+        "origen": null,
+        "descripcion": "Only to the tasks (app port)"
+      },
+      {
+        "id": "sgr-020ee33dd6717fa62",
+        "grupo": "sg-017511f6c6a0001d8",
+        "salida": false,
+        "protocolo": "tcp",
+        "desde": 3000,
+        "hasta": 3000,
+        "cidr": null,
+        "origen": "sg-03dd43001e7c0ee82",
+        "descripcion": "API traffic from ALB"
+      },
+      {
+        "id": "sgr-05becc616f406d154",
+        "grupo": "sg-03dd43001e7c0ee82",
+        "salida": true,
+        "protocolo": "tcp",
+        "desde": 3000,
+        "hasta": 3000,
+        "cidr": "10.20.0.0/24",
+        "origen": null,
+        "descripcion": "Only to the tasks (app port)"
+      }
+    ],
+    "auditoria": {
+      "inesperadas": [],
+      "salida_sin_filtrar": [],
+      "entrada_publica_en_grupos_privados": []
+    },
+    "tasks_con_ip_publica": 2,
+    "acceso_directo_bloqueado": true,
+    "acceso_directo": [
+      {
+        "ip": "44.204.163.226",
+        "traceId": "exp2-r1-estable-mwktflj7",
+        "alcanzable": false,
+        "error": "TimeoutError"
+      },
+      {
+        "ip": "100.63.201.170",
+        "traceId": "exp2-r1-estable-mwktflk0",
+        "alcanzable": false,
+        "error": "TimeoutError"
+      }
+    ],
+    "cobertura": {
+      "cloudtrail_trail": true,
+      "alerta_eventbridge": true,
+      "remediacion_lambda": true,
+      "alarma_senal_app": true,
+      "senal_app_acceso_directo": true
+    },
+    "alertas_sin_condicion_adversa": 0
+  },
+  "aperturas": [
+    {
+      "caso": "ecs",
+      "t": "2026-11-17T14:57:00.585Z",
+      "regla": "sgr-0cd0b05deeb6a220b",
+      "grupo": "sg-017511f6c6a0001d8"
+    },
+    {
+      "caso": "rds",
+      "t": "2026-11-17T14:57:28.365Z",
+      "regla": "sgr-0d0f5de6f90d9f54c",
+      "grupo": "sg-04a6ef2ae25c1dbb7"
+    }
+  ],
+  "vigilancia": {
+    "ecs": {
+      "desde": "2026-11-17T14:57:00.585Z",
+      "alcanzable": true,
+      "t_regla_retirada": "2026-11-17T14:57:21.681Z",
+      "contenida_por_control": true,
+      "muestras": [
+        {
+          "t": "2026-11-17T14:57:05.754Z",
+          "regla_presente": true,
+          "alcanzable": true,
+          "accesos": [
+            {
+              "ip": "100.63.201.170",
+              "traceId": "exp2-r1-ecs-mwktg1dh",
+              "alcanzable": true,
+              "status": 200
+            },
+            {
+              "ip": "44.204.163.226",
+              "traceId": "exp2-r1-ecs-mwktg1e4",
+              "alcanzable": true,
+              "status": 200
+            }
+          ]
+        },
+        {
+          "t": "2026-11-17T14:57:21.681Z",
+          "regla_presente": false,
+          "alcanzable": false,
+          "accesos": [
+            {
+              "ip": "100.63.201.170",
+              "traceId": "exp2-r1-ecs-mwktg9zc",
+              "alcanzable": false,
+              "error": "TimeoutError"
+            },
+            {
+              "ip": "44.204.163.226",
+              "traceId": "exp2-r1-ecs-mwktg9ze",
+              "alcanzable": false,
+              "error": "TimeoutError"
+            }
+          ]
+        }
+      ]
+    },
+    "rds": {
+      "desde": "2026-11-17T14:57:28.365Z",
+      "alcanzable": false,
+      "t_regla_retirada": "2026-11-17T14:57:41.507Z",
+      "contenida_por_control": true,
+      "muestras": [
+        {
+          "t": "2026-11-17T14:57:30.581Z",
+          "regla_presente": true,
+          "alcanzable": false,
+          "accesos": []
+        },
+        {
+          "t": "2026-11-17T14:57:41.507Z",
+          "regla_presente": false,
+          "alcanzable": false,
+          "accesos": []
+        }
+      ]
+    }
+  },
+  "salida": {
+    "t": "2026-11-17T14:57:42.426Z",
+    "tarea": "arn:aws:ecs:us-east-1:296121913016:task/pet-adoption-demo-cluster/bfe5f68cc95d4b28950ab904391a127e",
+    "exit_code": 2,
+    "prohibido_conecta": false,
+    "permitido_conecta": true
+  },
+  "reversion": {
+    "t": "2026-11-17T14:58:52.589Z",
+    "retiradas_por_el_experimento": [],
+    "restantes": [],
+    "acceso_directo_bloqueado": true,
+    "verificada": true
+  },
+  "mediciones": {
+    "t": "2026-11-17T15:00:28.127Z",
+    "cloudtrail": {
+      "ecs": {
+        "t": "2026-11-17T14:57:01.000Z",
+        "evento": "d8d25da0-eb85-40ed-822b-a134bdb47cca"
+      },
+      "rds": {
+        "t": "2026-11-17T14:57:29.000Z",
+        "evento": "6d1e0141-d225-443e-b303-63708ecc405f"
+      }
+    },
+    "alertas": {
+      "ecs": {
+        "t": "2026-11-17T14:57:13.616Z",
+        "total": 1
+      },
+      "rds": {
+        "t": "2026-11-17T14:57:42.553Z",
+        "total": 1
+      }
+    },
+    "app": {
+      "ecs": {
+        "t": "2026-11-17T14:57:07.120Z",
+        "total": 2,
+        "ejemplo": "{\"timestamp\":\"2026-11-17T14:57:05.717Z\",\"level\":\"warn\",\"service\":\"api-b-adopcion\",\"traceId\":\"exp2-r1-ecs-mwktg1dh\",\"otelTraceId\":\"c6c9b6525de30cf8899a74252876d5f8\",\"message\":\"Request reached the task without the load balancer\",\"evento\":\"acceso_directo_sin_alb\",\"method\":\"GET\",\"route\":\"/api/v2/animals/random\",\"ip\":\"::ffff:20.169.102.0\",\"agente\":\"exp2-sonda-externa\"}"
+      }
+    },
+    "alarmas_app": {
+      "ecs": {
+        "t": "2026-11-17T14:58:04.139Z"
+      }
+    }
+  },
+  "resumen": {
+    "tecnicas": [
+      {
+        "caso": "ecs",
+        "attack": "T1562.007 Impair Defenses: Disable or Modify Cloud Firewall",
+        "t_inicio": "2026-11-17T14:57:00.585Z",
+        "expuesto": true,
+        "senal_registrada": true,
+        "senales": [
+          "cloudtrail",
+          "log_app"
+        ],
+        "t_senal_s": 0.4,
+        "detectado": true,
+        "detectado_por": [
+          "eventbridge",
+          "alarma_app"
+        ],
+        "mttd_s": 13,
+        "contenido": true,
+        "mttc_s": 21.1
+      },
+      {
+        "caso": "rds",
+        "attack": "T1562.007 Impair Defenses: Disable or Modify Cloud Firewall",
+        "t_inicio": "2026-11-17T14:57:28.365Z",
+        "expuesto": false,
+        "senal_registrada": true,
+        "senales": [
+          "cloudtrail"
+        ],
+        "t_senal_s": 0.6,
+        "detectado": true,
+        "detectado_por": [
+          "eventbridge"
+        ],
+        "mttd_s": 14.2,
+        "contenido": true,
+        "mttc_s": 13.1
+      },
+      {
+        "caso": "salida",
+        "attack": "T1048 Exfiltration Over Alternative Protocol",
+        "t_inicio": "2026-11-17T14:57:42.426Z",
+        "expuesto": false,
+        "senal_registrada": false,
+        "senales": [],
+        "t_senal_s": null,
+        "detectado": false,
+        "detectado_por": [],
+        "mttd_s": null,
+        "contenido": true,
+        "mttc_s": 0,
+        "nota": "prevencion por filtrado de salida; no hay deteccion (requiere VPC Flow Logs)"
+      }
+    ],
+    "senal_registrada": "2/3",
+    "cobertura_deteccion": "2/3",
+    "contencion": "3/3",
+    "falsos_positivos": 0
+  }
+}
