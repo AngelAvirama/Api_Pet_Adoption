@@ -119,3 +119,17 @@ variable "otel_exporter_headers" {
   sensitive   = true
   default     = "none"
 }
+
+# Security game day (defense in depth), experiment 2
+
+variable "security_hardening_enabled" {
+  description = "Round of the security game day: false = round 0 (controls as before), true = round 1 (detection, containment and egress filtering)"
+  type        = bool
+  default     = false
+}
+
+variable "alert_email" {
+  description = "E-mail that receives the security alerts (SNS); empty = no subscription"
+  type        = string
+  default     = ""
+}

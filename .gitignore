@@ -36,3 +36,6 @@ override.tf.json
 /terraform/run-task-tables.json
 # Stop switch of the security game day (never versioned)
 chaos/security/results/STOP
+
+# Lambda packages built by Terraform
+terraform/.build/
