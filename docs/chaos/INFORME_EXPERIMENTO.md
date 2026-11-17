@@ -130,6 +130,10 @@ ventana del fallo de cada una, el circuito `abierto` durante la ronda 1 y las re
 
 ![Las dos rondas en el tablero](img/tablero-rondas.png)
 
+En la captura, el recuadro "Ronda 0" marca 45,96 % y no 100 % porque el rango visible (la ultima hora) incluye
+tambien la medicion del estado estable, que se hizo con la ronda 0 desplegada y sin fallo. Dentro de la
+ventana del fallo, la serie de la ronda 0 esta en 100 %.
+
 ## 7. Hallazgos inesperados
 
 1. **La reversion fallaba con dos replicas.** Al probar el interruptor contra AWS antes de las rondas, un
@@ -139,13 +143,16 @@ ventana del fallo de cada una, el circuito `abierto` durante la ronda 1 y las re
 2. **El tablero ocultaba los 500.** En la ronda 0 la tasa de error del tablero marcaba 0 %, aunque k6 media
    100 %. Cuando la peticion termina en el manejador de errores, Express ya salio del router y la metrica
    perdia el prefijo `/api/v2`. Se corrigio la etiqueta de ruta (commit `01ced47`) y la consulta del tablero
-   acepta las dos formas para no perder los datos ya registrados. La captura de la ronda 0 se tomo antes de esta
-   correccion; la metrica oficial es la de k6.
+   acepta las dos formas para no perder los datos ya registrados. La metrica oficial sigue siendo la de k6.
 3. **El fallo inyectado es mas amable que el real:** falla al instante, mientras que un RDS caido de verdad
    hace esperar a Prisma hasta su `connect_timeout` (5 s). Por eso la ronda 0 no muestra latencias altas; en un
    corte real el modo de fallo tendria ademas acumulacion de peticiones. El timeout de 1 s de la ronda 1 esta
    pensado para ese caso (ver backlog).
-4. En la ronda 1 hubo **3 peticiones no degradadas que fallaron** (0,0084 %). Con la evidencia actual no se
+4. **El circuito queda semiabierto sin trafico.** Despues de la ronda 1 el tablero muestra el circuito en
+   `semiabierto` durante casi media hora: opossum solo cierra el circuito cuando llega una peticion de prueba y
+   sale bien, y al terminar la carga no llego ninguna. Es el comportamiento esperado, pero un lector del tablero
+   puede creer que la dependencia sigue mal.
+5. En la ronda 1 hubo **3 peticiones no degradadas que fallaron** (0,0084 %). Con la evidencia actual no se
    pudo atribuir la causa (posiblemente la ventana entre el primer fallo y la primera lectura con respaldo en
    un task).
 
