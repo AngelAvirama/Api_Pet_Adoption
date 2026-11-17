@@ -9,7 +9,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "time": {
     "from": "now-1h",
     "to": "now"
@@ -93,7 +93,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum(increase(http_server_requests_total{job=\"$job\", http_route=\"/api/v2/animals/random\", app_round=\"0\", http_status_code=~\"5..\"}[$__range])) / sum(increase(http_server_requests_total{job=\"$job\", http_route=\"/api/v2/animals/random\", app_round=\"0\"}[$__range]))",
+          "expr": "(sum(increase(http_server_requests_total{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\", app_round=\"0\", http_status_code=~\"5..\"}[$__range])) or vector(0)) / sum(increase(http_server_requests_total{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\", app_round=\"0\"}[$__range]))",
           "instant": true
         }
       ],
@@ -150,7 +150,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum(increase(http_server_requests_total{job=\"$job\", http_route=\"/api/v2/animals/random\", app_round=\"1\", http_status_code=~\"5..\"}[$__range])) / sum(increase(http_server_requests_total{job=\"$job\", http_route=\"/api/v2/animals/random\", app_round=\"1\"}[$__range]))",
+          "expr": "(sum(increase(http_server_requests_total{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\", app_round=\"1\", http_status_code=~\"5..\"}[$__range])) or vector(0)) / sum(increase(http_server_requests_total{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\", app_round=\"1\"}[$__range]))",
           "instant": true
         }
       ],
@@ -188,7 +188,7 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Ronda 0: respuestas degradadas",
+      "title": "Fallos inyectados en la base de datos (rango visible)",
       "datasource": {
         "type": "prometheus",
         "uid": "${ds_prom}"
@@ -199,7 +199,7 @@
         "w": 6,
         "h": 5
       },
-      "description": "En la ronda 0 no hay degradacion: siempre 0.",
+      "description": "Consultas a la base de datos que el interruptor hizo fallar. En la ronda 0 terminan en 500; en la ronda 1 las absorben los patrones.",
       "targets": [
         {
           "refId": "A",
@@ -207,24 +207,20 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum(increase(responses_degraded_total{job=\"$job\"}[$__range])) * 0",
+          "expr": "sum(increase(chaos_injected_failures_total{job=\"$job\"}[$__range]))",
           "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit",
-          "decimals": 2,
+          "unit": "short",
+          "decimals": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "blue",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 0.05
               }
             ]
           }
@@ -245,7 +241,7 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Ronda 1: respuestas degradadas",
+      "title": "Respuestas degradadas en lugar de error (rango visible)",
       "datasource": {
         "type": "prometheus",
         "uid": "${ds_prom}"
@@ -256,7 +252,7 @@
         "w": 6,
         "h": 5
       },
-      "description": "",
+      "description": "Solo existen en la ronda 1: 200 con el ultimo animal conocido y degradado=true.",
       "targets": [
         {
           "refId": "A",
@@ -264,13 +260,14 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum(increase(responses_degraded_total{job=\"$job\"}[$__range]))",
+          "expr": "sum(increase(responses_degraded_total{job=\"$job\"}[$__range])) or vector(0)",
           "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
+          "decimals": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -315,7 +312,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "(sum by (app_round) (rate(http_server_requests_total{job=\"$job\", http_route=\"/api/v2/animals/random\", http_status_code=~\"5..\"}[1m])) or sum by (app_round) (rate(http_server_requests_total{job=\"$job\", http_route=\"/api/v2/animals/random\"}[1m])) * 0) / sum by (app_round) (rate(http_server_requests_total{job=\"$job\", http_route=\"/api/v2/animals/random\"}[1m]))",
+          "expr": "(sum by (app_round) (rate(http_server_requests_total{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\", http_status_code=~\"5..\"}[1m])) or sum by (app_round) (rate(http_server_requests_total{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\"}[1m])) * 0) / sum by (app_round) (rate(http_server_requests_total{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\"}[1m]))",
           "legendFormat": "ronda {{app_round}}"
         }
       ],
@@ -360,7 +357,7 @@
           "mode": "multi"
         }
       },
-      "description": "Fraccion de respuestas 5xx del contrato que consume el coordinador. Umbral declarado: 5 % (chaos/slo.json). La franja roja es la ventana de inyeccion."
+      "description": "Fraccion de respuestas 5xx del contrato que consume el coordinador. Umbral declarado: 5 % (chaos/slo.json). La franja roja es la ventana de inyeccion. El filtro de ruta acepta /animals/random porque antes del commit 01ced47 los 5xx se etiquetaban sin el prefijo /api/v2."
     },
     {
       "id": 6,
@@ -383,7 +380,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum by (http_status_code, app_round) (rate(http_server_requests_total{job=\"$job\", http_route=\"/api/v2/animals/random\"}[1m]))",
+          "expr": "sum by (http_status_code, app_round) (rate(http_server_requests_total{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\"}[1m]))",
           "legendFormat": "{{http_status_code}} ronda {{app_round}}"
         }
       ],
@@ -432,7 +429,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, app_round) (rate(http_server_duration_milliseconds_bucket{job=\"$job\", http_route=\"/api/v2/animals/random\", app_round!=\"\"}[2m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, app_round) (rate(http_server_duration_milliseconds_bucket{job=\"$job\", http_route=~\"(/api/v2)?/animals/random\", app_round!=\"\"}[2m])))",
           "legendFormat": "p95 ronda {{app_round}}"
         }
       ],
@@ -663,7 +660,7 @@
         "w": 24,
         "h": 9
       },
-      "description": "Escriba en la variable trace_id el X-Trace-Id del coordinador o de k6 (k6-r0-..., k6-r1-...).",
+      "description": "Elija en la variable Loki la fuente grafanacloud-<stack>-logs (no la de alert-state-history) y escriba en trace_id el X-Trace-Id del coordinador o de k6 (k6-r0-..., k6-r1-...).",
       "targets": [
         {
           "refId": "A",
