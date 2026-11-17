@@ -159,3 +159,17 @@ ventana del fallo de cada una, el circuito `abierto` durante la ronda 1 y las re
   pueda degradar.
 - Alerta en Grafana sobre `circuit_breaker_state == 2` y sobre la proporcion de respuestas degradadas.
 - Aislar las 3 peticiones fallidas de la ronda 1 correlacionando por `traceId` en Loki.
+
+## 9. Uso de IA
+
+Se uso Claude (Anthropic) como asistente durante todo el trabajo: revision del repositorio, propuesta de los
+patrones, codigo, pruebas y borrador de este informe. Todo lo que se entrego se valido con pruebas automaticas,
+con una ejecucion local de humo y con las rondas reales en AWS.
+
+- **Propuso y se uso:** guardar el estado del interruptor en SSM en lugar de en la base de datos que se tumba;
+  timeout + circuit breaker + ultimo valor conocido como pareja de patrones; el escenario de guardia de k6 como
+  condicion de aborto ligada al radio de impacto.
+- **Propuso y se descarto:** reintentos con retroceso (tormenta de reintentos contra una dependencia caida) y
+  autoescalado de ECS como patron principal (mas tasks no arreglan una base de datos caida).
+- **Fallo de la propia IA detectado por el humano:** la primera version de la cache del interruptor (hallazgo 1)
+  la escribio el asistente; el error aparecio al probar la reversion contra AWS.
