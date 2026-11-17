@@ -1,0 +1,620 @@
+{
+  "chaoslib-version": "1.45.1",
+  "platform": "Linux-7.0.0-1019-azure-x86_64-with-glibc2.43",
+  "node": "runnervmccnms",
+  "experiment": {
+    "version": "1.0.0",
+    "title": "Indisponibilidad de la base de datos de la API de adopcion (AWS ECS + RDS)",
+    "description": "Estado estable: con el perfil de carga P (10 usuarios virtuales en bucle cerrado durante 5 minutos, chaos/k6/adopcion.js), GET /api/v2/animals/random (la ruta que consume el coordinador en GKE) responde 200 en menos de 500 ms y la tasa de error es 0 %. Hipotesis falsable: dado el perfil de carga P, cuando la dependencia de base de datos de la API de adopcion falle de forma sostenida (100 % de las consultas del animal aleatorio con error P1001, como si RDS no respondiera) durante los 5 minutos de la carga, la API mantendra la tasa de error de GET /api/v2/animals/random por debajo del 5 %. Ronda 0 (RESILIENCE_ENABLED=false): se espera que la hipotesis se refute, porque cada consulta fallida termina en 500 y el error se propaga al coordinador. Ronda 1 (timeout de 1 s por consulta + circuit breaker + degradacion elegante con el ultimo animal conocido): se espera que se mantenga. Metodo de inyeccion: interruptor propio /internal/chaos (estado en SSM Parameter Store, protegido con X-Chaos-Token), aplicado solo en la consulta animal.findRandom. Radio de impacto: solo esa consulta en los tasks del servicio ECS pet-adoption-demo-api de la cuenta del grupo; RDS no se modifica, /api/health y el resto de rutas no se tocan, y las APIs de Leonardo (GCP) y Juan (OCI) no se tocan. Duracion: la carga (5 min) mas el TTL maximo del fallo (7 min), que es la reversion automatica si la ejecucion muere. Condiciones de aborto: k6 detiene la carga si /api/health (fuera del radio de impacto) falla en mas del 50 % de sus comprobaciones durante 60 s; Chaos Toolkit ejecuta los rollbacks siempre (--rollback-strategy=always). Plan de reversion automatica: DELETE /internal/chaos, verificacion de que no quedan fallos y de que el contrato vuelve a responder 200 en menos de 500 ms; como ultima red, el TTL del fallo. Metrica objetivo: tasa de error de GET /api/v2/animals/random medida por k6 (http_req_failed del escenario carga); ventana de observacion: los 5 minutos de la carga.",
+    "tags": [
+      "pet-adoption",
+      "indisponibilidad",
+      "dependencia",
+      "base-de-datos",
+      "aws",
+      "ecs"
+    ],
+    "contributions": {
+      "availability": "high",
+      "reliability": "high",
+      "security": "none"
+    },
+    "configuration": {
+      "base_url": {
+        "type": "env",
+        "key": "CHAOS_BASE_URL",
+        "default": "http://localhost:3000"
+      },
+      "ronda": {
+        "type": "env",
+        "key": "RONDA",
+        "default": "0"
+      },
+      "error_rate": {
+        "type": "env",
+        "key": "ERROR_RATE",
+        "default": "1"
+      },
+      "ttl_seconds": {
+        "type": "env",
+        "key": "TTL_SECONDS",
+        "default": "420"
+      },
+      "max_ms": {
+        "type": "env",
+        "key": "MAX_MS",
+        "default": "500"
+      },
+      "perfil": {
+        "type": "env",
+        "key": "PERFIL",
+        "default": "completo"
+      },
+      "results_dir": {
+        "type": "env",
+        "key": "RESULTS_DIR",
+        "default": "chaos/results"
+      }
+    },
+    "secrets": {
+      "caos": {
+        "token": {
+          "type": "env",
+          "key": "CHAOS_TOKEN"
+        }
+      }
+    },
+    "steady-state-hypothesis": {
+      "title": "La API esta sana y el contrato del coordinador responde 200 en menos de ${max_ms} ms",
+      "probes": [
+        {
+          "type": "probe",
+          "name": "la-api-esta-sana",
+          "tolerance": 0,
+          "provider": {
+            "type": "process",
+            "path": "node",
+            "arguments": [
+              "chaos/probes.js",
+              "salud"
+            ],
+            "timeout": 30
+          }
+        },
+        {
+          "type": "probe",
+          "name": "el-contrato-responde-a-tiempo",
+          "tolerance": 0,
+          "provider": {
+            "type": "process",
+            "path": "node",
+            "arguments": [
+              "chaos/probes.js",
+              "contrato",
+              "--max-ms",
+              "${max_ms}"
+            ],
+            "timeout": 45
+          }
+        }
+      ]
+    },
+    "method": [
+      {
+        "type": "probe",
+        "name": "la-ronda-desplegada-es-la-esperada",
+        "tolerance": 0,
+        "provider": {
+          "type": "process",
+          "path": "node",
+          "arguments": [
+            "chaos/probes.js",
+            "ronda",
+            "--esperada",
+            "${ronda}"
+          ],
+          "timeout": 30
+        }
+      },
+      {
+        "type": "probe",
+        "name": "antes-no-hay-fallos-activos",
+        "tolerance": 0,
+        "secrets": [
+          "caos"
+        ],
+        "provider": {
+          "type": "process",
+          "path": "node",
+          "arguments": [
+            "chaos/probes.js",
+            "sin-fallos"
+          ],
+          "timeout": 30
+        }
+      },
+      {
+        "type": "action",
+        "name": "inyectar-fallo-de-base-de-datos",
+        "secrets": [
+          "caos"
+        ],
+        "provider": {
+          "type": "process",
+          "path": "node",
+          "arguments": [
+            "chaos/probes.js",
+            "activar",
+            "--error",
+            "${error_rate}",
+            "--ttl",
+            "${ttl_seconds}",
+            "--motivo",
+            "experimento indisponibilidad ronda ${ronda}"
+          ],
+          "timeout": 30
+        },
+        "pauses": {
+          "after": 5
+        }
+      },
+      {
+        "type": "probe",
+        "name": "una-peticion-durante-el-fallo",
+        "provider": {
+          "type": "process",
+          "path": "node",
+          "arguments": [
+            "chaos/probes.js",
+            "contrato",
+            "--max-ms",
+            "60000"
+          ],
+          "timeout": 70
+        }
+      },
+      {
+        "type": "action",
+        "name": "carga-k6-con-el-perfil-declarado",
+        "provider": {
+          "type": "process",
+          "path": "k6",
+          "arguments": [
+            "run",
+            "--quiet",
+            "--env",
+            "BASE_URL=${base_url}",
+            "--env",
+            "RONDA=${ronda}",
+            "--env",
+            "PERFIL=${perfil}",
+            "--env",
+            "RESULTS_DIR=${results_dir}",
+            "chaos/k6/adopcion.js"
+          ],
+          "timeout": 600
+        }
+      }
+    ],
+    "rollbacks": [
+      {
+        "type": "action",
+        "name": "revertir-el-fallo",
+        "secrets": [
+          "caos"
+        ],
+        "provider": {
+          "type": "process",
+          "path": "node",
+          "arguments": [
+            "chaos/probes.js",
+            "revertir"
+          ],
+          "timeout": 30
+        },
+        "pauses": {
+          "after": 5
+        }
+      },
+      {
+        "type": "probe",
+        "name": "despues-no-quedan-fallos-activos",
+        "tolerance": 0,
+        "secrets": [
+          "caos"
+        ],
+        "provider": {
+          "type": "process",
+          "path": "node",
+          "arguments": [
+            "chaos/probes.js",
+            "sin-fallos"
+          ],
+          "timeout": 30
+        }
+      },
+      {
+        "type": "probe",
+        "name": "el-sistema-volvio-al-estado-estable",
+        "tolerance": 0,
+        "provider": {
+          "type": "process",
+          "path": "node",
+          "arguments": [
+            "chaos/probes.js",
+            "contrato",
+            "--max-ms",
+            "${max_ms}"
+          ],
+          "timeout": 45
+        }
+      }
+    ],
+    "dry": null
+  },
+  "start": "2026-11-16T23:53:42.056014+00:00",
+  "status": "completed",
+  "deviated": true,
+  "steady_states": {
+    "before": {
+      "steady_state_met": true,
+      "probes": [
+        {
+          "activity": {
+            "type": "probe",
+            "name": "la-api-esta-sana",
+            "tolerance": 0,
+            "provider": {
+              "type": "process",
+              "path": "node",
+              "arguments": [
+                "chaos/probes.js",
+                "salud"
+              ],
+              "timeout": 30
+            }
+          },
+          "output": {
+            "status": 0,
+            "stdout": "{\n  \"ok\": true,\n  \"status\": 200,\n  \"ms\": 196\n}\n",
+            "stderr": ""
+          },
+          "start": "2026-11-16T23:53:42.056600+00:00",
+          "status": "succeeded",
+          "end": "2026-11-16T23:53:42.280795+00:00",
+          "duration": 0.224195,
+          "tolerance_met": true
+        },
+        {
+          "activity": {
+            "type": "probe",
+            "name": "el-contrato-responde-a-tiempo",
+            "tolerance": 0,
+            "provider": {
+              "type": "process",
+              "path": "node",
+              "arguments": [
+                "chaos/probes.js",
+                "contrato",
+                "--max-ms",
+                "${max_ms}"
+              ],
+              "timeout": 45
+            }
+          },
+          "output": {
+            "status": 0,
+            "stdout": "{\n  \"ok\": true,\n  \"status\": 200,\n  \"ms\": 219,\n  \"max_ms\": 500,\n  \"traceId\": \"sonda-r0-mwjx69wf\",\n  \"ronda\": \"0\",\n  \"degradado\": false,\n  \"motivo\": null\n}\n",
+            "stderr": ""
+          },
+          "start": "2026-11-16T23:53:42.280993+00:00",
+          "status": "succeeded",
+          "end": "2026-11-16T23:53:42.527738+00:00",
+          "duration": 0.246745,
+          "tolerance_met": true
+        }
+      ]
+    },
+    "after": {
+      "steady_state_met": false,
+      "probes": [
+        {
+          "activity": {
+            "type": "probe",
+            "name": "la-api-esta-sana",
+            "tolerance": 0,
+            "provider": {
+              "type": "process",
+              "path": "node",
+              "arguments": [
+                "chaos/probes.js",
+                "salud"
+              ],
+              "timeout": 30
+            }
+          },
+          "output": {
+            "status": 0,
+            "stdout": "{\n  \"ok\": true,\n  \"status\": 200,\n  \"ms\": 193\n}\n",
+            "stderr": ""
+          },
+          "start": "2026-11-16T23:58:48.691493+00:00",
+          "status": "succeeded",
+          "end": "2026-11-16T23:58:48.908616+00:00",
+          "duration": 0.217123,
+          "tolerance_met": true
+        },
+        {
+          "activity": {
+            "type": "probe",
+            "name": "el-contrato-responde-a-tiempo",
+            "tolerance": 0,
+            "provider": {
+              "type": "process",
+              "path": "node",
+              "arguments": [
+                "chaos/probes.js",
+                "contrato",
+                "--max-ms",
+                "${max_ms}"
+              ],
+              "timeout": 45
+            }
+          },
+          "output": {
+            "status": 1,
+            "stdout": "{\n  \"ok\": false,\n  \"status\": 500,\n  \"ms\": 194,\n  \"max_ms\": 500,\n  \"traceId\": \"sonda-r0-mwjxcuhs\",\n  \"ronda\": \"0\",\n  \"degradado\": false,\n  \"motivo\": null\n}\n",
+            "stderr": ""
+          },
+          "start": "2026-11-16T23:58:48.908801+00:00",
+          "status": "succeeded",
+          "end": "2026-11-16T23:58:49.127933+00:00",
+          "duration": 0.219132,
+          "tolerance_met": false
+        }
+      ]
+    },
+    "during": []
+  },
+  "run": [
+    {
+      "activity": {
+        "type": "probe",
+        "name": "la-ronda-desplegada-es-la-esperada",
+        "tolerance": 0,
+        "provider": {
+          "type": "process",
+          "path": "node",
+          "arguments": [
+            "chaos/probes.js",
+            "ronda",
+            "--esperada",
+            "${ronda}"
+          ],
+          "timeout": 30
+        }
+      },
+      "output": {
+        "status": 0,
+        "stdout": "{\n  \"ok\": true,\n  \"esperada\": \"0\",\n  \"desplegada\": \"0\"\n}\n",
+        "stderr": ""
+      },
+      "start": "2026-11-16T23:53:42.528145+00:00",
+      "status": "succeeded",
+      "end": "2026-11-16T23:53:42.741403+00:00",
+      "duration": 0.213258
+    },
+    {
+      "activity": {
+        "type": "probe",
+        "name": "antes-no-hay-fallos-activos",
+        "tolerance": 0,
+        "secrets": [
+          "caos"
+        ],
+        "provider": {
+          "type": "process",
+          "path": "node",
+          "arguments": [
+            "chaos/probes.js",
+            "sin-fallos"
+          ],
+          "timeout": 30
+        }
+      },
+      "output": {
+        "status": 0,
+        "stdout": "{\n  \"ok\": true,\n  \"status\": 200,\n  \"activos\": []\n}\n",
+        "stderr": ""
+      },
+      "start": "2026-11-16T23:53:42.741596+00:00",
+      "status": "succeeded",
+      "end": "2026-11-16T23:53:42.980353+00:00",
+      "duration": 0.238757
+    },
+    {
+      "activity": {
+        "type": "action",
+        "name": "inyectar-fallo-de-base-de-datos",
+        "secrets": [
+          "caos"
+        ],
+        "provider": {
+          "type": "process",
+          "path": "node",
+          "arguments": [
+            "chaos/probes.js",
+            "activar",
+            "--error",
+            "${error_rate}",
+            "--ttl",
+            "${ttl_seconds}",
+            "--motivo",
+            "experimento indisponibilidad ronda ${ronda}"
+          ],
+          "timeout": 30
+        },
+        "pauses": {
+          "after": 5
+        }
+      },
+      "output": {
+        "status": 0,
+        "stdout": "{\n  \"ok\": true,\n  \"status\": 201,\n  \"fallo\": {\n    \"dependencia\": \"database\",\n    \"error_rate\": 1,\n    \"latency_ms\": 0,\n    \"expires_at\": \"2026-11-17T00:00:43.182Z\",\n    \"created_at\": \"2026-11-16T23:53:43.182Z\",\n    \"motivo\": \"experimento indisponibilidad ronda 0\",\n    \"creado_por\": \"node\",\n    \"segundos_restantes\": 420\n  }\n}\n",
+        "stderr": ""
+      },
+      "start": "2026-11-16T23:53:42.980519+00:00",
+      "status": "succeeded",
+      "end": "2026-11-16T23:53:43.276095+00:00",
+      "duration": 0.295576
+    },
+    {
+      "activity": {
+        "type": "probe",
+        "name": "una-peticion-durante-el-fallo",
+        "provider": {
+          "type": "process",
+          "path": "node",
+          "arguments": [
+            "chaos/probes.js",
+            "contrato",
+            "--max-ms",
+            "60000"
+          ],
+          "timeout": 70
+        }
+      },
+      "output": {
+        "status": 1,
+        "stdout": "{\n  \"ok\": false,\n  \"status\": 500,\n  \"ms\": 203,\n  \"max_ms\": 60000,\n  \"traceId\": \"sonda-r0-mwjx6eiy\",\n  \"ronda\": \"0\",\n  \"degradado\": false,\n  \"motivo\": null\n}\n",
+        "stderr": ""
+      },
+      "start": "2026-11-16T23:53:48.276641+00:00",
+      "status": "succeeded",
+      "end": "2026-11-16T23:53:48.507242+00:00",
+      "duration": 0.230601
+    },
+    {
+      "activity": {
+        "type": "action",
+        "name": "carga-k6-con-el-perfil-declarado",
+        "provider": {
+          "type": "process",
+          "path": "k6",
+          "arguments": [
+            "run",
+            "--quiet",
+            "--env",
+            "BASE_URL=${base_url}",
+            "--env",
+            "RONDA=${ronda}",
+            "--env",
+            "PERFIL=${perfil}",
+            "--env",
+            "RESULTS_DIR=${results_dir}",
+            "chaos/k6/adopcion.js"
+          ],
+          "timeout": 600
+        }
+      },
+      "output": {
+        "status": 99,
+        "stdout": "\nRonda 0 (completo) contra http://pet-adoption-demo-alb-66249762.us-east-1.elb.amazonaws.com\n   peticiones al contrato : 33778\n   tasa de error (5xx)    : 100.00 %   <- metrica objetivo\n   respuestas degradadas  : 0.00 %\n   p95 del contrato       : 120.1 ms\n   checks                 : 33.53 %\nUmbrales:\n   OK    http_req_failed{scenario:guardia} rate<0.5\n   FALLA http_req_failed{scenario:carga} rate<0.05\n",
+        "stderr": "time=\"2026-11-16T23:58:48Z\" level=error msg=\"thresholds on metrics 'http_req_failed{scenario:carga}' have been crossed\"\n"
+      },
+      "start": "2026-11-16T23:53:48.507382+00:00",
+      "status": "succeeded",
+      "end": "2026-11-16T23:58:48.691180+00:00",
+      "duration": 300.183798
+    }
+  ],
+  "rollbacks": [
+    {
+      "activity": {
+        "type": "action",
+        "name": "revertir-el-fallo",
+        "secrets": [
+          "caos"
+        ],
+        "provider": {
+          "type": "process",
+          "path": "node",
+          "arguments": [
+            "chaos/probes.js",
+            "revertir"
+          ],
+          "timeout": 30
+        },
+        "pauses": {
+          "after": 5
+        }
+      },
+      "output": {
+        "status": 0,
+        "stdout": "{\n  \"ok\": true,\n  \"status\": 200,\n  \"resultado\": {\n    \"eliminados\": 1\n  }\n}\n",
+        "stderr": ""
+      },
+      "start": "2026-11-16T23:58:49.128454+00:00",
+      "status": "succeeded",
+      "end": "2026-11-16T23:58:49.413860+00:00",
+      "duration": 0.285406
+    },
+    {
+      "activity": {
+        "type": "probe",
+        "name": "despues-no-quedan-fallos-activos",
+        "tolerance": 0,
+        "secrets": [
+          "caos"
+        ],
+        "provider": {
+          "type": "process",
+          "path": "node",
+          "arguments": [
+            "chaos/probes.js",
+            "sin-fallos"
+          ],
+          "timeout": 30
+        }
+      },
+      "output": {
+        "status": 0,
+        "stdout": "{\n  \"ok\": true,\n  \"status\": 200,\n  \"activos\": []\n}\n",
+        "stderr": ""
+      },
+      "start": "2026-11-16T23:58:54.414398+00:00",
+      "status": "succeeded",
+      "end": "2026-11-16T23:58:54.657999+00:00",
+      "duration": 0.243601
+    },
+    {
+      "activity": {
+        "type": "probe",
+        "name": "el-sistema-volvio-al-estado-estable",
+        "tolerance": 0,
+        "provider": {
+          "type": "process",
+          "path": "node",
+          "arguments": [
+            "chaos/probes.js",
+            "contrato",
+            "--max-ms",
+            "${max_ms}"
+          ],
+          "timeout": 45
+        }
+      },
+      "output": {
+        "status": 0,
+        "stdout": "{\n  \"ok\": true,\n  \"status\": 200,\n  \"ms\": 212,\n  \"max_ms\": 500,\n  \"traceId\": \"sonda-r0-mwjxcyxk\",\n  \"ronda\": \"0\",\n  \"degradado\": false,\n  \"motivo\": null\n}\n",
+        "stderr": ""
+      },
+      "start": "2026-11-16T23:58:54.658290+00:00",
+      "status": "succeeded",
+      "end": "2026-11-16T23:58:54.898084+00:00",
+      "duration": 0.239794
+    }
+  ],
+  "end": "2026-11-16T23:58:54.898175+00:00",
+  "duration": 312.8465099334717
+}

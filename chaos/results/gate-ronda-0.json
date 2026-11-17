@@ -1,0 +1,22 @@
+{
+  "ronda": "0",
+  "aprobado": false,
+  "umbral": {
+    "error_rate_max": 0.05
+  },
+  "medido": {
+    "perfil": "completo",
+    "error_rate": 1,
+    "peticiones": 33778,
+    "degradadas": 0,
+    "p95_ms": 120.13709104999968,
+    "experimento": "completed",
+    "desviado": true
+  },
+  "motivos": [
+    "Tasa de error 100.00 % supera el umbral de 5.00 %",
+    "k6 rompio el umbral http_req_failed{scenario:carga} rate<0.05",
+    "La hipotesis de estado estable se refuto (deviated)"
+  ],
+  "evaluado": "2026-11-16T23:59:00.479Z"
+}
