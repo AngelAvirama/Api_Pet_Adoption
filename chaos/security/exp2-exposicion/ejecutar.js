@@ -23,7 +23,7 @@ const P = comun.PREFIJO;
 const NOMBRES = { alb: `${P}-alb-sg`, ecs: `${P}-ecs-sg`, rds: `${P}-rds-sg` };
 const CLUSTER = `${P}-cluster`;
 const SERVICIO = `${P}-api`;
-const LOG_ALERTAS = `/aws/events/${P}-seguridad`;
+const LOG_ALERTAS = `/aws/lambda/${P}-revocar-ingreso-publico`;
 const LOG_APP = `/ecs/${P}`;
 const ARCHIVO = `exp2-ronda-${RONDA}.json`;
 
@@ -103,7 +103,7 @@ const comandos = {
     const reglaAlerta = comun.aws(['events', 'describe-rule', '--name', `${P}-seguridad-sg-publico`], { allowFail: true });
     const remediacion = comun.aws(['lambda', 'get-function', '--function-name', `${P}-revocar-ingreso-publico`], { allowFail: true });
     const unaHoraAtras = new Date(Date.now() - 3600 * 1000).toISOString();
-    const alertasPrevias = eventosDeLog(LOG_ALERTAS, unaHoraAtras);
+    const alertasPrevias = eventosDeLog(LOG_ALERTAS, unaHoraAtras, '"exposicion_detectada"');
 
     datos.estado_estable = {
       t: comun.ahora(),
@@ -239,7 +239,7 @@ const comandos = {
       const evento = (ct.Events || []).find((e) => (e.CloudTrailEvent || '').includes(apertura.grupo));
       datos.mediciones.cloudtrail[apertura.caso] = evento ? { t: new Date(typeof evento.EventTime === 'number' ? evento.EventTime * 1000 : evento.EventTime).toISOString(), evento: evento.EventId } : null;
 
-      const alertas = eventosDeLog(LOG_ALERTAS, apertura.t).filter((e) => e.message.includes(apertura.grupo));
+      const alertas = eventosDeLog(LOG_ALERTAS, apertura.t, '"exposicion_detectada"').filter((e) => e.message.includes(apertura.grupo));
       const primera = alertas.sort((a, b) => a.ingestionTime - b.ingestionTime)[0];
       datos.mediciones.alertas[apertura.caso] = primera ? { t: new Date(primera.ingestionTime).toISOString(), total: alertas.length } : null;
 

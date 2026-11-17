@@ -27,7 +27,7 @@ const grupoDe = (detalle) => detalle.requestParameters?.groupId
 
 const decidir = (evento, protegidos = []) => {
   const detalle = evento?.detail || {};
-  const base = { exposicion: false, grupo: grupoDe(detalle), evento: detalle.eventName || null };
+  const base = { exposicion: false, grupo: grupoDe(detalle), api: detalle.eventName || null };
 
   if (detalle.eventSource !== 'ec2.amazonaws.com' || !EVENTOS.has(detalle.eventName)) {
     return { ...base, motivo: 'evento no relacionado' };
