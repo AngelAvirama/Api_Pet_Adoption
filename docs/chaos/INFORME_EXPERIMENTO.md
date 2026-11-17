@@ -94,10 +94,15 @@ Ejecutada de 18:53:42 a 18:58:54 desde `chaos-gate.yml`. Evidencia en `chaos/res
   3. La API si tiene un dato util para responder (los animales son datos semilla que cambian poco), pero no lo
      conserva.
 - **Observabilidad del momento del fallo:** en el tablero, la franja roja de `chaos_fault_active` coincide con
-  el pico de fallos inyectados; el codigo 500 aparece en los logs con el mismo `traceId` que mando k6 (por
-  ejemplo `k6-r0-...`) y en las trazas de Tempo.
+  el pico de fallos inyectados (unos 127 por segundo).
+- **Correlacion por trace id:** la peticion `k6-r0-3-3792-mwjxctpk` (18:58:47) se sigue de punta a punta. k6 la
+  envio con ese `X-Trace-Id`; Loki tiene su log con el mismo `traceId`, `statusCode: 500` y `round: "0"`; y el
+  campo `otelTraceId` del log (`80b685dd...`) es el ID de su traza en Tempo (`GET /api/v2/animals/random`). El
+  mismo log muestra `route: "/animals/random"` sin el prefijo `/api/v2`, que es la causa del hallazgo 2.
 
 ![Fallo activo, circuito y fallos inyectados](img/tablero-fallo-y-circuito.png)
+
+![Log y traza de la misma peticion de la ronda 0](img/logs-trazas-correlacionados-ronda-0.png)
 
 ## 5. Mejoras aplicadas (dos patrones, a partir del diagnostico)
 
