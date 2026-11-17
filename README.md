@@ -1,10 +1,112 @@
-# 🐾 Pet Adoption API – Canary Deployment en AWS
+# 🐾 Pet Adoption API – Ingeniería del Caos (v5) y Canary Deployment en AWS
 
 API REST para la gestión de animales, adoptantes y adopciones, con una estrategia de despliegue progresivo **Canary Deployment** sobre Amazon Web Services (AWS).
 
 El proyecto permite mantener dos versiones de la API ejecutándose simultáneamente, distribuir el tráfico entre ellas mediante porcentajes configurables y evaluar el comportamiento de la nueva versión antes de promoverla completamente a producción.
 
 La solución incorpora automatización CI/CD, monitoreo con Amazon CloudWatch, pruebas de carga concurrente, un Quality Gate y un mecanismo de recuperación mediante rollback.
+
+## 💥 Release 5: Ingeniería del Caos (`v5.0.0`)
+
+La release 5 integra esta API en el flujo de extremo a extremo del grupo y le agrega una plataforma de
+experimentación de Ingeniería del Caos definida como código. El experimento de esta API es la
+**indisponibilidad de una dependencia**: la base de datos (RDS PostgreSQL) de la ruta que consume el
+coordinador. El detalle de la ejecución está en [`chaos/README.md`](chaos/README.md) y los resultados en el
+[informe del experimento](docs/chaos/INFORME_EXPERIMENTO.md).
+
+**URL pública vigente:** `http://pet-adoption-demo-alb-66249762.us-east-1.elb.amazonaws.com`
+(guardada por el coordinador en Secret Manager como `medical-api-api-c-url`).
+
+| Pieza | Dónde |
+|---|---|
+| Contrato del coordinador `GET /api/v2/animals/random` y `/api/v2/health` (también en `/api/v5`) | `src/v5/` |
+| Trace id: respeta el `X-Trace-Id` recibido, lo devuelve y lo escribe en cada log | `src/middlewares/traceId.middleware.js`, `src/config/requestContext.js`, `src/config/logger.js` |
+| Interruptor de fallos propio (`/internal/chaos`, estado en SSM, token y TTL) | `src/chaos/` |
+| Patrones de resiliencia (timeout + circuit breaker, degradación con el último animal conocido) | `src/resilience/` |
+| Experimento de Chaos Toolkit, k6, sondas, puerta de calidad y SLO | `chaos/` |
+| Infraestructura (secretos, rol del task con mínimo privilegio, variables de la ronda, OTel) | `terraform/chaos.tf`, `terraform/ecs.tf` |
+| Workflows: despliegue y chaos gate | `.github/workflows/deploy-terraform.yml`, `.github/workflows/chaos-gate.yml` |
+| Tablero de Grafana Cloud | `chaos/grafana/dashboard-caos.json` |
+| Informe y evidencia de las rondas | `docs/chaos/INFORME_EXPERIMENTO.md`, `chaos/results/` |
+
+### Arquitectura del flujo, puntos de inyección y radio de impacto
+
+```mermaid
+flowchart LR
+  k6["k6 + Chaos Toolkit<br/>(GitHub Actions)"]
+  subgraph GCP["GCP: GKE (Leonardo)"]
+    C["Coordinador<br/>GET /api/v5/flujo/:imagenId"]
+  end
+  subgraph AWS["AWS: API de adopción (Angel)"]
+    ALB["ALB"] --> T["ECS Fargate<br/>2 tasks"]
+    T -.->|"estado del fallo<br/>(cada 3 s)"| SSM[("SSM Parameter Store")]
+    subgraph RI["Radio de impacto de Angel"]
+      Q["animal.findRandom<br/>PUNTO DE INYECCIÓN (b)"]
+    end
+    T --> Q --> RDS[("RDS PostgreSQL")]
+  end
+  subgraph OCI["OCI: API de vuelos (Juan)"]
+    V["GET /api/v2/entidades/vuelos/random<br/>PUNTO DE INYECCIÓN (c)"]
+  end
+  k6 -->|"carga de Angel: GET /api/v2/animals/random"| ALB
+  k6 -->|"POST/DELETE /internal/chaos<br/>X-Chaos-Token"| ALB
+  C ==>|"1. animal + X-Trace-Id + traceparent<br/>PUNTO DE INYECCIÓN (a): latencia"| ALB
+  C -->|"2. vuelo + X-Trace-Id"| V
+  T -.->|"OTLP: trazas, métricas, logs"| G["Grafana Cloud<br/>(Tempo, Prometheus, Loki)"]
+  C -.-> G
+```
+
+- **Puntos de inyección:** (a) latencia en la llamada saliente del coordinador hacia esta API (experimento de
+  Leonardo); (b) falla de la base de datos dentro de esta API (experimento de Angel); (c) agotamiento de
+  recursos en la API de vuelos (experimento de Juan).
+- **Frontera del radio de impacto de Angel:** solo la consulta `animal.findRandom` en los tasks del servicio
+  ECS. RDS, el ALB, `/api/health`, el resto de rutas y las otras dos nubes no se tocan.
+- **Dónde se mide:** la métrica objetivo la mide k6 en el cliente; la API expone la misma señal por OTLP
+  (`http_server_requests_total` por ruta, código y ronda), además de `chaos_fault_active`,
+  `chaos_injected_failures_total`, `degraded_responses_total` y `circuit_breaker_state`.
+
+### Matriz integrante, fallo, métrica objetivo y patrón de resiliencia
+
+| Integrante | Nube | Fallo | Métrica objetivo (instrumento, ventana) | Patrones de resiliencia |
+|---|---|---|---|---|
+| Leonardo | GCP (GKE, 2 réplicas) | (a) latencia de 3000 ms en la llamada saliente hacia la API de Angel | p95 extremo a extremo de `GET /api/v5/flujo` < 2000 ms (k6, 5 min) | timeout por dependencia + circuit breaker + respuesta degradada |
+| **Angel** | **AWS (ECS + ALB + RDS)** | **(b) indisponibilidad de la base de datos (100 % de fallos sostenidos)** | **tasa de error de `GET /api/v2/animals/random` < 5 % (k6, 5 min)** | **timeout de 1 s + circuit breaker; degradación con el último animal conocido** |
+| Juan | OCI | (c) agotamiento del pool de conexiones o del límite de concurrencia | throughput sostenido o p99 (k6, 5 min) | control de admisión + mamparo con timeout por consulta |
+
+### Rondas del experimento de Angel (AWS, 2026-11-16)
+
+| Métrica | Estado estable (sin fallo) | Ronda 0 (sin protección) | Ronda 1 (con patrones) |
+|---|---|---|---|
+| Tasa de error | 0,0025 % | **100 %** | **0,0084 %** (-99,99 %) |
+| Respuestas degradadas | 0 % | 0 % | 99,99 % |
+| Experimento / puerta | — | `deviated` / rechazada | `completed` / aprobada |
+
+La ronda se cambia con la variable `RESILIENCE_ENABLED` (input `resilience_enabled` de *Deploy Terraform and
+ECS*); la cabecera `X-Ronda` de toda respuesta indica la ronda desplegada.
+
+### Puerta de calidad (chaos gate)
+
+`chaos-gate.yml` es manual (`workflow_dispatch`) y exige `ventana_autorizada=true`. Comprueba la ronda
+desplegada, valida el experimento y el script de k6, ejecuta `chaos run --rollback-strategy=always`, revierte el
+fallo en un paso `if: always()` que falla si queda un fallo activo, evalúa `chaos/gate.js` contra
+`chaos/slo.json` y sube la evidencia como artefacto. No usa `continue-on-error`: la ronda 0 termina en rojo a
+propósito y la ronda 1 en verde. El modo `estado-estable` mide la línea base con la misma carga y sin fallo.
+
+### Qué se conserva, se modifica o se retira
+
+| Pieza | Estado en v5 |
+|---|---|
+| ECS Fargate + ALB + RDS (Terraform, despliegue con OIDC) | **Conservado** y ampliado: 2 tasks, rol propio del task, secretos del interruptor y de Grafana, variables de la ronda |
+| Rutas `/api` (CRUD), `/api/v3` y `/api/v4` | **Conservadas** sin cambios funcionales |
+| Contrato `/api/v2` | **Restaurado** para el coordinador (en la v4 solo existían `/api/v3` y `/api/v4`) |
+| Canary (servicio ECS, target group, workflows `canary-*`) | **Conservado** con 0 tasks; no participa del flujo v5 |
+| Redis (caché de la v2) | **Retirado** (`REDIS_ENABLED=false`): el respaldo de la degradación vive en memoria de cada task |
+| Llamadas de esta API a las de Juan y Leonardo (composición de la v2) | **Fuera del flujo v5**: el coordinador es quien encadena las tres APIs |
+| Kubernetes (`k8s/`, EKS) | **Fuera del despliegue**: el requisito de Kubernetes lo cubre el coordinador en GKE |
+
+---
+
+# Releases anteriores: Canary Deployment (v4)
 
 ## 📖 Descripción del proyecto
 
