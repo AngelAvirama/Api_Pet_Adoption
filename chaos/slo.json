@@ -8,7 +8,11 @@
     "herramienta": "k6",
     "archivo": "chaos/k6/adopcion.js",
     "usuarios_virtuales": 10,
-    "etapas": ["30s subida a 10 VU", "4m sostenido en 10 VU", "30s bajada a 0"],
+    "etapas": [
+      "30s subida a 10 VU",
+      "4m sostenido en 10 VU",
+      "30s bajada a 0"
+    ],
     "duracion_total": "5m"
   },
   "fallo": {
@@ -16,5 +20,15 @@
     "dependencia": "RDS PostgreSQL via Prisma (animal.findRandom)",
     "error_rate": 1,
     "ttl_seconds": 420
+  },
+  "estado_estable_medido": {
+    "fecha": "2026-11-16",
+    "evidencia": "chaos/results/k6-ronda-estable-r0.json (chaos-gate.yml, modo estado-estable, sin fallo)",
+    "peticiones": 39801,
+    "error_rate": 2.51e-05,
+    "throughput_rps": 133.7,
+    "p95_ms": 169.1,
+    "p99_ms": 405.5,
+    "conclusion": "Con el perfil declarado y sin fallo la tasa de error es 0,0025 %, dos ordenes de magnitud por debajo del umbral de 5 %: el umbral se mantiene."
   }
 }
