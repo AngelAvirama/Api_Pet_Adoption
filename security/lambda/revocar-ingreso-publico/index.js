@@ -43,7 +43,9 @@ const crearHandler = ({ ec2, sns, comandos, env }) => async (evento) => {
       await sns.send(new comandos.PublishCommand({
         TopicArn: env.ALERT_TOPIC_ARN,
         Subject: `[seguridad] Grupo ${decision.grupo} abierto a Internet`,
-        Message: JSON.stringify(resultado, null, 2)
+        // The message is written before knowing whether it was delivered, so
+        // it does not carry alerta_enviada (it would always say false)
+        Message: JSON.stringify((({ alerta_enviada: _, ...cuerpo }) => cuerpo)(resultado), null, 2)
       }));
       resultado.alerta_enviada = true;
     } catch (error) {

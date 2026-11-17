@@ -42,6 +42,8 @@ describe('remediation Lambda', () => {
     expect(r).toMatchObject({ exposicion: true, revocadas: ['sgr-0abc'], alerta_enviada: true });
     expect(enviados[0].input).toEqual({ GroupId: 'sg-ecs-ejemplo', SecurityGroupRuleIds: ['sgr-0abc'] });
     expect(enviados[1].input.Subject).toMatch(/sg-ecs-ejemplo/);
+    expect(JSON.parse(enviados[1].input.Message)).not.toHaveProperty('alerta_enviada');
+    expect(JSON.parse(enviados[1].input.Message).revocadas).toEqual(['sgr-0abc']);
     expect(logs.map((l) => l.evento)).toEqual(['exposicion_detectada', 'exposicion_contenida']);
   });
 

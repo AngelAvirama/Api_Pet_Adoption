@@ -31,7 +31,9 @@ const ARCHIVO = `exp2-ronda-${RONDA}.json`;
 const cargar = () => comun.leerResultado(ARCHIVO) || { experimento: 2, ronda: RONDA, bitacora: [] };
 const guardar = (datos) => comun.guardarResultado(ARCHIVO, datos);
 const anotar = (datos, evento, extra = {}) => {
-  const entrada = { t: comun.ahora(), evento, ...extra };
+  // The time of the log entry is always "now", even if the data carries
+  // another t (for example the start of the egress probe)
+  const entrada = { ...extra, t: comun.ahora(), evento };
   datos.bitacora.push(entrada);
   console.log(JSON.stringify(entrada));
   return entrada;
