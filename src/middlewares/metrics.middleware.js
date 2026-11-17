@@ -69,6 +69,7 @@ const metricsMiddleware = (req, res, next) => {
       appVersion: labels.app_version,
       appTrack: labels.app_track,
       round: labels.round,
+      viaAlb: req.viaAlb,
       durationMs: Number((duration * 1000).toFixed(2))
     });
   });

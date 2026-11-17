@@ -117,6 +117,10 @@ resource "aws_ecs_task_definition" "api" {
         {
           name  = "OTEL_PROPAGATORS"
           value = "tracecontext,baggage"
+        },
+        {
+          name  = "ORIGIN_CHECK_ENABLED"
+          value = "true"
         }
       ]
 

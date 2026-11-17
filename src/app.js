@@ -5,6 +5,7 @@ const adoptanteRoutes = require('./routes/adoptante.routes');
 const adopcionRoutes = require('./routes/adopcion.routes');
 const errorHandler = require('./middlewares/error.middleware');
 const traceIdMiddleware = require('./middlewares/traceId.middleware');
+const originMiddleware = require('./middlewares/origin.middleware');
 const versionMiddleware = require('./middlewares/version.middleware');
 const v3Routes = require('./v3/routes');
 const v4Routes = require('./v4/routes');
@@ -18,6 +19,7 @@ const { roundMiddleware } = require('./resilience/config');
 const app = express();
 
 app.use(traceIdMiddleware);
+app.use(originMiddleware);
 app.use(versionMiddleware);
 app.use(roundMiddleware);
 app.use(metricsMiddleware);
