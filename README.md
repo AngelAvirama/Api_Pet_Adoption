@@ -1,4 +1,4 @@
-# 🐾 Pet Adoption API – Ingeniería del Caos (v5) y Canary Deployment en AWS
+# 🐾 Pet Adoption API – Ingeniería del Caos, Defensa en Profundidad (v5) y Canary Deployment en AWS
 
 API REST para la gestión de animales, adoptantes y adopciones, con una estrategia de despliegue progresivo **Canary Deployment** sobre Amazon Web Services (AWS).
 
@@ -103,6 +103,88 @@ propósito y la ronda 1 en verde. El modo `estado-estable` mide la línea base c
 | Redis (caché de la v2) | **Retirado** (`REDIS_ENABLED=false`): el respaldo de la degradación vive en memoria de cada task |
 | Llamadas de esta API a las de Juan y Leonardo (composición de la v2) | **Fuera del flujo v5**: el coordinador es quien encadena las tres APIs |
 | Kubernetes (`k8s/`, EKS) | **Fuera del despliegue**: el requisito de Kubernetes lo cubre el coordinador en GKE |
+
+## 🛡️ Defensa en profundidad: game day de Ingeniería del Caos de Seguridad (`v5.0.0`)
+
+Esta API aporta al game day del grupo el **experimento 2: exposición y segmentación** (capa de red, AWS). Los
+experimentos 1 (identidad) y 4 (datos, grupal) y la IA en la defensa están en el repositorio de Leonardo; el
+3 (telemetría e IA), en el de Juan. Informe del experimento:
+[`docs/security/INFORME_GAMEDAY_EXP2.md`](docs/security/INFORME_GAMEDAY_EXP2.md).
+
+### Arquitectura por capas: fronteras de confianza, inyección y telemetría
+
+```mermaid
+flowchart TB
+  INET(("Internet<br/>(no confiable)"))
+  subgraph CUENTA["Frontera: cuenta AWS del grupo"]
+    subgraph PUB["Subredes públicas"]
+      ALB["ALB<br/>SG: solo 80 desde Internet<br/>salida: solo 3000 a los tasks"]
+      T["Tasks ECS (2)<br/>SG: solo el ALB al 3000<br/>salida: 443 y 5432 a la BD"]
+    end
+    subgraph PRIV["Subredes privadas (sin ruta a Internet)"]
+      RDS[("RDS PostgreSQL<br/>SG: solo ECS al 5432")]
+    end
+    CT["CloudTrail"] --> EB["EventBridge<br/>regla 01 (detección como código)"]
+    EB --> L["Lambda: retira la regla<br/>(contención)"]
+    EB --> LG["Log /aws/events/...-seguridad"]
+    CW["CloudWatch Logs del contenedor"] --> AL["Alarma 02:<br/>acceso directo sin ALB"]
+    L --> SNS["SNS: correo al responsable"]
+    AL --> SNS
+  end
+  INET -->|"ruta declarada"| ALB --> T --> RDS
+  INET -.->|"INYECCIÓN ecs: 3000 abierto<br/>(ruta no declarada)"| T
+  INET -.->|"INYECCIÓN rds: 5432 abierto"| RDS
+  T -.->|"INYECCIÓN salida: TCP 80"| INET
+  T -->|"log con traceId<br/>acceso_directo_sin_alb"| CW
+  T -->|"OTLP"| GC["Grafana Cloud"]
+```
+
+- **Fronteras de confianza:** Internet → ALB (única entrada pública declarada) → tasks → base de datos en
+  subredes privadas. Cada salto se controla con un security group que referencia al anterior.
+- **Puntos de inyección:** las tres flechas punteadas (casos `ecs`, `rds` y `salida`).
+- **Puntos de recolección de telemetría:** CloudTrail (cambios de red), EventBridge y el log de la Lambda
+  (alerta y contención), CloudWatch Logs del contenedor (acceso sin ALB con `traceId`) y Grafana Cloud.
+
+### Resultado del experimento 2
+
+| Métrica | Ronda 0 (controles como estaban) | Ronda 1 (con mejoras) |
+|---|---|---|
+| MTTD exposición ECS / RDS | no detectada / no detectada | **13,0 s / 14,2 s** |
+| MTTC exposición ECS / RDS | no contenida / no contenida | **21,1 s / 13,1 s** |
+| Salida a un puerto no permitido | conecta | bloqueada |
+| Cobertura de detección | 0/3 | **2/3** |
+| Contención | 0/3 | **3/3** |
+| Falsos positivos | 0 | 0 |
+| Hipótesis (alerta ≤ 5 min, contención ≤ 10 min) | refutada | se mantiene |
+
+### Tabla de trazabilidad control - experimento - marco
+
+| Control | Experimento | MITRE ATT&CK | MITRE D3FEND | ISO/IEC 27001:2022 | NIST SP 800-53 | NIST SP 800-207 |
+|---|---|---|---|---|---|---|
+| Alerta y contención de reglas públicas (CloudTrail, EventBridge, Lambda, SNS) | 2 | T1562.007 | D3-ITF, D3-NTF | A.8.20, A.8.16 | SC-7, SI-4, IR-4 | verificación continua |
+| Alarma de acceso sin ALB (log con `traceId`) | 2 | T1562.007, T1190 | D3-NTA | A.8.16 | SI-4, AU-6 | verificación continua |
+| Denegación por defecto y filtrado de salida | 2 | T1048 | D3-OTF | A.8.20, A.8.22 | SC-7(5) | microsegmentación |
+| Base de datos en subredes privadas | 2 | T1562.007 | D3-NI | A.8.22 | SC-7 | microsegmentación |
+| Rol OIDC limitado por rama; Lambda con mínimo privilegio | 2 | T1078.004 | D3-UAP | A.5.15, A.8.2 | AC-6 | mínimo privilegio |
+
+### Cómo reproducirlo
+
+| Pieza | Dónde |
+|---|---|
+| Experimento como código (estado estable, abrir, vigilar, salida, revertir, medir, informe) | `chaos/security/exp2-exposicion/` |
+| Utilidades: ventana `CHAOS_WINDOW`, interruptor `STOP`, bitácora | `chaos/security/comun.js` |
+| Detección como código con casos positivos y negativos | `chaos/security/detecciones/*.json`, `evaluar.js` |
+| Lambda de contención | `security/lambda/revocar-ingreso-publico/` |
+| Infraestructura de las mejoras | `terraform/seguridad.tf`, `terraform/security_groups.tf` |
+| Evidencia de las dos rondas | `chaos/security/results/exp2-ronda-*.json`, `docs/security/img/` |
+
+1. *Deploy Terraform and ECS* con `security_hardening=false` (ronda 0) o `true` (ronda 1). La variable de
+   GitHub `ALERT_EMAIL` define el correo de las alertas (hay que confirmar la suscripción de SNS).
+2. *Security game day* con `ventana_autorizada=true` y la `ronda`. El workflow evalúa la detección como
+   código, mide el estado estable, ejecuta los tres casos, revierte siempre y sube la evidencia.
+3. Sin AWS: `node chaos/security/detecciones/evaluar.js` y `npx jest tests/security`.
+
+Interruptor de parada: crear `chaos/security/results/STOP` detiene cualquier acción adversa.
 
 ---
 
