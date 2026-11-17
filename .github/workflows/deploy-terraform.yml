@@ -14,6 +14,11 @@ on:
         required: true
         type: boolean
         default: false
+      security_hardening:
+        description: "Security game day round: false = round 0 (controls as before), true = round 1 (detection, containment, egress filtering)"
+        required: true
+        type: boolean
+        default: false
       desired_count:
         description: "Number of API tasks"
         required: true
@@ -36,6 +41,8 @@ env:
   TF_VAR_chaos_token: ${{ secrets.CHAOS_TOKEN }}
   TF_VAR_otel_exporter_headers: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
   TF_VAR_resilience_enabled: ${{ inputs.resilience_enabled }}
+  TF_VAR_security_hardening_enabled: ${{ inputs.security_hardening }}
+  TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
 
 jobs:
   deploy:
